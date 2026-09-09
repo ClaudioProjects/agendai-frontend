@@ -14,6 +14,7 @@ import { getAlarmStorage } from "./libs/storage";
 import { notificationScheduler } from "./libs/notifications";
 import { AppShell } from "./components/layout/AppShell";
 import { HomePage } from "./pages/HomePage";
+import { WeekPage } from "./pages/WeekPage";
 
 type Theme = "system" | "light" | "dark";
 type AlarmContextValue = {
@@ -225,6 +226,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: "agenda", element: <HomePage /> },
+      { path: "agenda/week", element: <WeekPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
