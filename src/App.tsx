@@ -1,122 +1,239 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+/* eslint-disable react-refresh/only-export-components */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+} from "react";
+import { Link, RouterProvider, createBrowserRouter } from "react-router";
+import type { Alarm, AlarmInput } from "./libs/alarm";
+import { getAlarmStorage } from "./libs/storage";
+import { notificationScheduler } from "./libs/notifications";
+import { AppShell } from "./components/layout/AppShell";
+import { HomePage } from "./pages/HomePage";
 
-function App() {
-  const [count, setCount] = useState(0)
+type Theme = "system" | "light" | "dark";
+type AlarmContextValue = {
+  alarms: Alarm[];
+  loading: boolean;
+  error: string | null;
+  saveAlarm: (input: AlarmInput, id?: string) => Promise<Alarm>;
+  removeAlarm: (id: string) => Promise<void>;
+  updateAlarm: (id: string, input: Partial<AlarmInput>) => Promise<void>;
+  toggleComplete: (id: string, occurrence?: string) => Promise<void>;
+  refresh: () => Promise<void>;
+};
+type ThemeContextValue = { theme: Theme; setTheme: (theme: Theme) => void };
+const AlarmContext = createContext<AlarmContextValue | null>(null);
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+const storage = getAlarmStorage();
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+export function useAlarms() {
+  const value = useContext(AlarmContext);
+  if (!value) throw new Error("useAlarms must be used inside AppProviders");
+  return value;
 }
 
-export default App
+export function useTheme() {
+  const value = useContext(ThemeContext);
+  if (!value) throw new Error("useTheme must be used inside AppProviders");
+  return value;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Não foi possível atualizar seus lembretes.";
+}
+
+function AppProviders({ children }: PropsWithChildren) {
+  const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [theme, setThemeState] = useState<Theme>(
+    () =>
+      (window.localStorage.getItem("agendai:theme") as Theme | null) ??
+      "system",
+  );
+
+  const refresh = useCallback(async (reconcileNotifications = false) => {
+    setLoading(true);
+    try {
+      const items = await storage.list();
+      setAlarms(items);
+      setError(null);
+      if (reconcileNotifications) {
+        try {
+          await notificationScheduler.reconcile(items);
+        } catch (notificationError) {
+          setError(
+            `Seus lembretes foram carregados, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`,
+          );
+        }
+      }
+    } catch (storageError) {
+      setError(
+        `Não foi possível carregar seus lembretes: ${errorMessage(storageError)}`,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // The initial storage read must happen after the provider mounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refresh(true);
+  }, [refresh]);
+
+  useEffect(() => {
+    const reconcileOnResume = () => {
+      if (document.visibilityState !== "visible") return;
+      void notificationScheduler
+        .reconcile(alarms)
+        .catch((notificationError) => {
+          setError(
+            `Não foi possível atualizar as notificações: ${errorMessage(notificationError)}`,
+          );
+        });
+    };
+    document.addEventListener("visibilitychange", reconcileOnResume);
+    return () =>
+      document.removeEventListener("visibilitychange", reconcileOnResume);
+  }, [alarms]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const dark = theme === "dark" || (theme === "system" && media.matches);
+      document.documentElement.classList.toggle("dark", dark);
+      document.documentElement.dataset.theme = theme;
+    };
+    applyTheme();
+    if (theme === "system") media.addEventListener("change", applyTheme);
+    window.localStorage.setItem("agendai:theme", theme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [theme]);
+
+  const alarmValue = useMemo<AlarmContextValue>(
+    () => ({
+      alarms,
+      loading,
+      error,
+      refresh,
+      async saveAlarm(input, id) {
+        const result = id
+          ? await storage.update(id, input)
+          : await storage.create(input);
+        if (!result) throw new Error("Lembrete não encontrado.");
+        try {
+          await notificationScheduler.cancel(result.id);
+          await notificationScheduler.schedule(result);
+        } catch (notificationError) {
+          const message = `O lembrete foi salvo, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
+          setError(message);
+          throw new Error(message, { cause: notificationError });
+        } finally {
+          await refresh();
+        }
+        return result;
+      },
+      async removeAlarm(id) {
+        try {
+          await notificationScheduler.cancel(id);
+          await storage.delete(id);
+        } finally {
+          await refresh();
+        }
+      },
+      async updateAlarm(id, input) {
+        const result = await storage.update(id, input);
+        try {
+          if (result) {
+            await notificationScheduler.cancel(id);
+            await notificationScheduler.schedule(result);
+          }
+        } catch (notificationError) {
+          const message = `O lembrete foi atualizado, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
+          setError(message);
+          throw new Error(message, { cause: notificationError });
+        } finally {
+          await refresh();
+        }
+      },
+      async toggleComplete(id, occurrence) {
+        const alarm = alarms.find((item) => item.id === id);
+        if (!alarm) return;
+        if (alarm.recurrence.type !== "none") {
+          if (!occurrence) {
+            throw new Error("Escolha a ocorrência que deseja concluir.");
+          }
+          const next =
+            alarm.exceptions[occurrence] === "completed"
+              ? undefined
+              : "completed";
+          await this.updateAlarm(id, {
+            exceptions: {
+              ...alarm.exceptions,
+              ...(next ? { [occurrence]: next } : {}),
+            },
+          });
+          return;
+        }
+        await this.updateAlarm(id, {
+          status: alarm.status === "completed" ? "pending" : "completed",
+        });
+      },
+    }),
+    [alarms, error, loading, refresh],
+  );
+
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme: setThemeState }}>
+      <AlarmContext.Provider value={alarmValue}>
+        {children}
+      </AlarmContext.Provider>
+    </ThemeContext.Provider>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <div className="flex min-h-[40svh] flex-col items-center justify-center gap-3 text-center">
+      <h1 className="m-0 text-2xl">Página não encontrada</h1>
+      <p className="m-0 text-sm text-muted">
+        Esta rota não existe ou não está mais disponível.
+      </p>
+      <Link
+        className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground no-underline"
+        to="/agenda"
+      >
+        Voltar para agenda
+      </Link>
+    </div>
+  );
+}
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <AppShell />,
+    errorElement: <NotFoundPage />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "agenda", element: <HomePage /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
+]);
+
+export default function App() {
+  return (
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>
+  );
+}
