@@ -15,6 +15,7 @@ import { notificationScheduler } from "./libs/notifications";
 import { AppShell } from "./components/layout/AppShell";
 import { HomePage } from "./pages/HomePage";
 import { WeekPage } from "./pages/WeekPage";
+import { AlarmFormPage } from "./pages/AlarmFormPage";
 
 type Theme = "system" | "light" | "dark";
 type AlarmContextValue = {
@@ -230,6 +231,8 @@ const router = createBrowserRouter([
       { path: "*", element: <NotFoundPage /> },
     ],
   },
+  { path: "/alarms/new", element: <AlarmFormPage /> },
+  { path: "/alarms/:id/edit", element: <AlarmFormPage /> },
 ]);
 
 export default function App() {
