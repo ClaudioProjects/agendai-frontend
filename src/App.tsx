@@ -16,6 +16,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { HomePage } from "./pages/HomePage";
 import { WeekPage } from "./pages/WeekPage";
 import { AlarmFormPage } from "./pages/AlarmFormPage";
+import { AlarmDetailPage } from "./pages/AlarmDetailPage";
 
 type Theme = "system" | "light" | "dark";
 type AlarmContextValue = {
@@ -228,6 +229,7 @@ const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: "agenda", element: <HomePage /> },
       { path: "agenda/week", element: <WeekPage /> },
+      { path: "alarms/:id", element: <AlarmDetailPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
