@@ -18,6 +18,7 @@ import { WeekPage } from "./pages/WeekPage";
 import { AlarmFormPage } from "./pages/AlarmFormPage";
 import { AlarmDetailPage } from "./pages/AlarmDetailPage";
 import { CompletedPage } from "./pages/CompletedPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 type Theme = "system" | "light" | "dark";
 type AlarmContextValue = {
@@ -232,6 +233,7 @@ const router = createBrowserRouter([
       { path: "agenda/week", element: <WeekPage /> },
       { path: "alarms/:id", element: <AlarmDetailPage /> },
       { path: "completed", element: <CompletedPage /> },
+      { path: "settings", element: <SettingsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
