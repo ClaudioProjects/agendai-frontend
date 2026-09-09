@@ -1,1 +1,104 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap");
 @import "tailwindcss";
+
+:root {
+  --background: #fffcf7;
+  --foreground: #10233f;
+  --primary: #2f3d31;
+  --primary-foreground: #fffaf2;
+  --surface: #fffdf9;
+  --surface-foreground: #10233f;
+  --muted: #6d7680;
+  --muted-surface: #eee8de;
+  --border: #e4dacb;
+  --accent: #be4c16;
+  --danger: #b95d4e;
+  --shadow: 0 12px 28px rgba(45, 39, 28, 0.08);
+  --card-shadow: 0 4px 12px rgba(45, 39, 28, 0.045);
+  --category-default: #a08058;
+  --category-health: #f2b1a0;
+  --category-dentist: #f4bea9;
+  --category-work: #9ec8ff;
+  --category-study: #b2a6e4;
+  --category-exercise: #94c4ff;
+  --category-finance: #f5cb67;
+  --category-food: #f2b28f;
+  --category-shopping: #b7c98a;
+  --category-social: #e0a9c5;
+  --category-medication: #9ebddd;
+  --category-other: #c9c0b2;
+}
+
+.dark {
+  --background: #202a2d;
+  --foreground: #f4eee4;
+  --primary: #dbe4d8;
+  --primary-foreground: #202a2d;
+  --surface: #293437;
+  --surface-foreground: #f4eee4;
+  --muted: #b4b8b5;
+  --muted-surface: #354043;
+  --border: #465255;
+  --accent: #e27b4c;
+}
+
+.theme-logo--dark {
+  display: none;
+}
+
+.dark .theme-logo--light {
+  display: none;
+}
+
+.dark .theme-logo--dark {
+  display: block;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-muted-surface: var(--muted-surface);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --font-sans: "Roboto", sans-serif;
+  --shadow-soft: var(--shadow);
+  --shadow-card: var(--card-shadow);
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Roboto", sans-serif;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button {
+    color: inherit;
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}

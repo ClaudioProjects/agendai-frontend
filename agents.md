@@ -5,7 +5,12 @@
 - Todo o frontend fica em `/frontend`.
 - Todas as imagens de referência ficam em `/assets`.
 - O backend não faz parte do escopo atual.
-- O PRD é somente um arquivo local de referência e controle: **nunca adicionar, stagear ou commitar o PRD**.
+
+## Runtime e ferramentas
+
+- O runtime padrão do projeto é o **Bun**.
+- Usar `bun`, `bunx` e os scripts definidos no `package.json` como primeira opção.
+- Não substituir o Bun por Node.js/npm sem autorização explícita.
 
 ## Arquitetura e padrões
 
@@ -35,8 +40,19 @@
 - Temas `system`, `light` e `dark` devem reutilizar os mesmos tokens.
 - Todo merge/composição de classes Tailwind deve passar por `cn()` em `/frontend/src/libs`.
 - Não importar diretamente outra implementação de merge nos componentes.
-- As referências em `/assets` indicadas no PRD são rígidas; não redesenhar espontaneamente.
+- As referências visuais em `/assets` são rígidas; não redesenhar espontaneamente.
 - Ajustes visuais só são permitidos para responsividade, safe areas, acessibilidade e conteúdo dinâmico.
+
+## Formatação obrigatória
+
+- Sempre executar o Prettier em todos os arquivos da pasta `/frontend` antes de finalizar qualquer alteração:
+
+```bash
+bunx prettier --write .
+```
+
+- A execução deve acontecer mesmo quando a alteração envolver apenas um arquivo.
+- Depois do Prettier, executar novamente as validações aplicáveis.
 
 ## Commits
 
@@ -52,7 +68,6 @@ fix(FE-008): reschedule local notifications
 ```
 
 - Antes do commit, executar as validações disponíveis: typecheck, lint, testes e build, além de validar manualmente o fluxo alterado quando aplicável.
-- **Nunca commitar o PRD, mesmo após atualizar localmente a tabela de fases.**
 - Usar somente a autoria Git configurada pelo usuário.
 - Nunca adicionar `Co-authored-by` para agente, IA, ChatGPT, OpenAI ou ferramenta de co-work.
 
@@ -67,5 +82,5 @@ Sem autorização explícita, não:
 - acessar SQLite ou `localStorage` diretamente em pages/componentes;
 - hardcodar cores de produto;
 - ignorar o `cn()` central;
-- implementar funcionalidades fora do PRD;
+- implementar funcionalidades fora do escopo aprovado;
 - alterar a arquitetura principal silenciosamente.

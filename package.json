@@ -6,17 +6,23 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check": "tsc --noEmit",
     "lint": "eslint .",
+    "test": "bun test tests",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1",
     "@capacitor/android": "^8.5.1",
     "@capacitor/core": "^8.5.1",
+    "@capacitor/local-notifications": "^8.3.1",
     "@tailwindcss/vite": "^4.3.3",
-    "cn": "^0.2.6",
+    "clsx": "^2.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-icons": "^5.7.0",
     "react-router": "^8.3.1",
+    "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
     "zod": "^4.5.4"
   },
