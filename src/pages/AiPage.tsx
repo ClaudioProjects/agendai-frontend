@@ -22,6 +22,20 @@ const examples = [
   "Me lembre de pagar a conta sexta às 18h e me avise 1 hora antes.",
 ];
 
+const recordingMimeTypes = [
+  "audio/webm;codecs=opus",
+  "audio/mp4;codecs=mp4a.40.2",
+  "audio/ogg;codecs=opus",
+];
+
+function normalizeAudioMimeType(value: string) {
+  return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+}
+
+function preferredRecordingMimeType() {
+  return recordingMimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
 function isReadyToSave(draft: AlarmDraft) {
   return Boolean(
     draft.date &&
@@ -162,6 +176,7 @@ export function AiPage() {
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const recordingMimeType = useRef("");
   const shouldSendRecording = useRef(false);
   const requestVersion = useRef(0);
   const mounted = useRef(true);
@@ -176,6 +191,7 @@ export function AiPage() {
     stream.current = null;
     recorder.current = null;
     chunks.current = [];
+    recordingMimeType.current = "";
     if (mounted.current) setRecordingStream(null);
   };
 
@@ -275,16 +291,23 @@ export function AiPage() {
         return;
       }
 
-      const media = new MediaRecorder(mediaStream);
+      const preferredMimeType = preferredRecordingMimeType();
+      const media = new MediaRecorder(
+        mediaStream,
+        preferredMimeType ? { mimeType: preferredMimeType } : undefined,
+      );
       chunks.current = [];
+      recordingMimeType.current = normalizeAudioMimeType(media.mimeType);
       shouldSendRecording.current = false;
       media.ondataavailable = (event) => {
-        if (event.data.size) chunks.current.push(event.data);
+        if (!event.data.size) return;
+        chunks.current.push(event.data);
+        recordingMimeType.current ||= normalizeAudioMimeType(event.data.type);
       };
       media.onstop = () => {
         const shouldSend = shouldSendRecording.current;
         const audio = new Blob(chunks.current, {
-          type: media.mimeType || "audio/webm",
+          type: recordingMimeType.current || "audio/webm",
         });
         shouldSendRecording.current = false;
         releaseRecording();

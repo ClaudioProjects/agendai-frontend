@@ -36,6 +36,20 @@ type TimeContext = {
   locale: string;
 };
 
+const audioExtensions: Record<string, string> = {
+  "audio/aac": "aac",
+  "audio/mp4": "mp4",
+  "audio/mpeg": "mp3",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/webm": "webm",
+};
+
+function normalizeAudioMimeType(value: string) {
+  return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+}
+
 export class AiApiError extends Error {
   readonly code: string;
 
@@ -151,9 +165,20 @@ export const aiInterpreter: AiInterpreter = {
     return parseResponse(response);
   },
   async interpretAudio(audio) {
+    const mimeType = normalizeAudioMimeType(audio.type);
+    const extension = audioExtensions[mimeType];
+    if (!extension)
+      throw new AiApiError(
+        "UNSUPPORTED_AUDIO",
+        "O formato de áudio gerado pelo dispositivo não é suportado.",
+      );
     const context = browserTimeContext();
     const form = new FormData();
-    form.set("audio", audio, "lembrete.webm");
+    form.set(
+      "audio",
+      new Blob([audio], { type: mimeType }),
+      `lembrete.${extension}`,
+    );
     form.set("currentDateTime", context.currentDateTime);
     form.set("timezone", context.timezone);
     form.set("locale", context.locale);
