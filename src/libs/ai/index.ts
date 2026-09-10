@@ -60,7 +60,9 @@ function browserTimeContext(): TimeContext {
 
 function apiConfiguration() {
   const baseUrl = import.meta.env.VITE_AGENDAI_API_URL?.replace(/\/$/, "");
-  const token = import.meta.env.VITE_FIREBASE_APP_CHECK_TOKEN?.trim();
+  const token =
+    import.meta.env.VITE_APP_AUTH_TEST_TOKEN?.trim() ||
+    import.meta.env.VITE_FIREBASE_APP_CHECK_TOKEN?.trim();
   if (!baseUrl)
     throw new AiApiError(
       "AI_API_NOT_CONFIGURED",
@@ -69,7 +71,7 @@ function apiConfiguration() {
   if (!token)
     throw new AiApiError(
       "APP_CHECK_TOKEN_REQUIRED",
-      "Defina VITE_FIREBASE_APP_CHECK_TOKEN para usar a IA.",
+      "Defina VITE_APP_AUTH_TEST_TOKEN ou VITE_FIREBASE_APP_CHECK_TOKEN para usar a IA.",
     );
   return { baseUrl, token };
 }
