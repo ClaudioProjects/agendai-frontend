@@ -8,7 +8,13 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { Link, RouterProvider, createBrowserRouter } from "react-router";
+import {
+  Link,
+  Outlet,
+  RouterProvider,
+  createBrowserRouter,
+  useLocation,
+} from "react-router";
 import type { Alarm, AlarmInput } from "./libs/alarm";
 import { getAlarmStorage } from "./libs/storage";
 import { notificationScheduler } from "./libs/notifications";
@@ -223,20 +229,62 @@ function NotFoundPage() {
   );
 }
 
+type PersistentPage = "agenda" | "week" | "ai" | "completed" | "settings";
+
+function persistentPageFor(pathname: string): PersistentPage | null {
+  if (pathname === "/" || pathname === "/agenda") return "agenda";
+  if (pathname === "/agenda/week") return "week";
+  if (pathname === "/ai") return "ai";
+  if (pathname === "/completed") return "completed";
+  if (pathname === "/settings") return "settings";
+  return null;
+}
+
+function PersistentPrimaryPages() {
+  const { pathname } = useLocation();
+  const activePage = persistentPageFor(pathname);
+
+  return (
+    <>
+      <div hidden={activePage !== "agenda"}>
+        <HomePage />
+      </div>
+      <div hidden={activePage !== "week"}>
+        <WeekPage />
+      </div>
+      <div hidden={activePage !== "ai"}>
+        <AiPage />
+      </div>
+      <div hidden={activePage !== "completed"}>
+        <CompletedPage />
+      </div>
+      <div hidden={activePage !== "settings"}>
+        <SettingsPage />
+      </div>
+      {!activePage && <Outlet />}
+    </>
+  );
+}
+
 const router = createBrowserRouter([
   {
     path: "/",
     element: <AppShell />,
     errorElement: <NotFoundPage />,
     children: [
-      { index: true, element: <HomePage /> },
-      { path: "agenda", element: <HomePage /> },
-      { path: "agenda/week", element: <WeekPage /> },
-      { path: "alarms/:id", element: <AlarmDetailPage /> },
-      { path: "completed", element: <CompletedPage /> },
-      { path: "ai", element: <AiPage /> },
-      { path: "settings", element: <SettingsPage /> },
-      { path: "*", element: <NotFoundPage /> },
+      {
+        element: <PersistentPrimaryPages />,
+        children: [
+          { index: true, element: null },
+          { path: "agenda", element: null },
+          { path: "agenda/week", element: null },
+          { path: "alarms/:id", element: <AlarmDetailPage /> },
+          { path: "completed", element: null },
+          { path: "ai", element: null },
+          { path: "settings", element: null },
+          { path: "*", element: <NotFoundPage /> },
+        ],
+      },
     ],
   },
   { path: "/alarms/new", element: <AlarmFormPage /> },

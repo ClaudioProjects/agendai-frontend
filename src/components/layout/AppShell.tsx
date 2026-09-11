@@ -33,8 +33,8 @@ export function AppShell() {
         </div>
       </div>
     );
-  const isWeek = location.pathname.includes("/week");
-  const isAgenda = location.pathname === "/" || location.pathname === "/agenda";
+  const isAgenda =
+    location.pathname === "/" || location.pathname.startsWith("/agenda");
   return (
     <div className="mx-auto min-h-svh max-w-[680px] pb-[calc(92px+env(safe-area-inset-bottom))] min-[700px]:min-h-[calc(100svh-24px)] min-[700px]:overflow-hidden min-[700px]:rounded-[28px] min-[700px]:border min-[700px]:border-border min-[700px]:bg-background">
       <header className="flex h-[70px] items-center justify-between px-[22px] pt-[max(14px,env(safe-area-inset-top))] pb-2">
@@ -76,7 +76,6 @@ export function AppShell() {
             cn(
               navItem,
               (isActive || isAgenda) &&
-                !isWeek &&
                 "text-accent after:mt-0.5 after:h-0.5 after:w-9 after:rounded after:bg-accent [&>svg]:[stroke-width:2.5]",
             )
           }
