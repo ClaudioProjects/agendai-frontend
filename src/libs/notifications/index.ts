@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import {
   LocalNotifications,
-  type ScheduleEvery,
+  type Schedule,
 } from "@capacitor/local-notifications";
 import type { Alarm } from "../alarm";
 import {
@@ -44,21 +44,6 @@ function normalizePermission(value: string): NotificationPermission {
   return value === "denied" ? "denied" : "default";
 }
 
-function repeatEvery(alarm: Alarm): ScheduleEvery | undefined {
-  switch (alarm.recurrence.type) {
-    case "daily":
-      return "day";
-    case "weekly":
-      return "week";
-    case "monthly":
-      return "month";
-    case "yearly":
-      return "year";
-    default:
-      return undefined;
-  }
-}
-
 function variants(alarm: Alarm): Alarm[] {
   if (
     alarm.recurrence.type !== "weekly" ||
@@ -72,6 +57,43 @@ function variants(alarm: Alarm): Alarm[] {
 }
 
 type Occurrence = { dateKey: string; notificationAt: Date };
+
+function recurringSchedule(
+  alarm: Alarm,
+  occurrence: Occurrence,
+): Schedule | undefined {
+  if (
+    alarm.recurrence.type === "none" ||
+    alarm.recurrence.endDate ||
+    Object.keys(alarm.exceptions).length
+  ) {
+    return undefined;
+  }
+
+  const notificationAt = occurrence.notificationAt;
+  const time = {
+    hour: notificationAt.getHours(),
+    minute: notificationAt.getMinutes(),
+    second: notificationAt.getSeconds(),
+  };
+
+  switch (alarm.recurrence.type) {
+    case "daily":
+      return { on: time };
+    case "weekly":
+      return { on: { ...time, weekday: notificationAt.getDay() + 1 } };
+    case "monthly":
+      return { on: { ...time, day: notificationAt.getDate() } };
+    case "yearly":
+      return {
+        on: {
+          ...time,
+          day: notificationAt.getDate(),
+          month: notificationAt.getMonth() + 1,
+        },
+      };
+  }
+}
 
 function upcomingOccurrences(
   alarm: Alarm,
@@ -138,13 +160,8 @@ const nativeScheduler: NotificationScheduler = {
       variants(alarm).flatMap((variant, variantIndex) => {
         const occurrences = upcomingOccurrences(variant, offset, 90);
         if (!occurrences.length) return [];
-        const every = repeatEvery(variant);
-        const canRepeat = Boolean(
-          every &&
-          !variant.recurrence.endDate &&
-          !Object.keys(variant.exceptions).length,
-        );
-        const scheduledOccurrences = canRepeat
+        const recurring = recurringSchedule(variant, occurrences[0]);
+        const scheduledOccurrences = recurring
           ? occurrences.slice(0, 1)
           : occurrences;
         return scheduledOccurrences.map((occurrence, occurrenceIndex) => ({
@@ -152,13 +169,11 @@ const nativeScheduler: NotificationScheduler = {
             alarm.id,
             offsetIndex,
             variantIndex,
-            canRepeat ? undefined : occurrence.dateKey,
+            recurring ? undefined : occurrence.dateKey,
           ),
           title: getAlarmTitle(alarm),
           body: alarm.description || "Seu lembrete está chegando.",
-          schedule: canRepeat
-            ? { at: occurrence.notificationAt, repeats: true, every }
-            : { at: occurrence.notificationAt },
+          schedule: recurring ?? { at: occurrence.notificationAt },
           extra: {
             alarmId: alarm.id,
             occurrence: occurrence.dateKey,
