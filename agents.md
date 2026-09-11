@@ -11,6 +11,7 @@
 - O runtime padrão do projeto é o **Bun**.
 - Usar `bun`, `bunx` e os scripts definidos no `package.json` como primeira opção.
 - Não substituir o Bun por Node.js/npm sem autorização explícita.
+- Solicitar autorização explícita antes de instalar qualquer pacote ou dependência.
 
 ## Arquitetura e padrões
 
