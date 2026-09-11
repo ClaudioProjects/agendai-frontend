@@ -133,8 +133,24 @@ function AppProviders({ children }: PropsWithChildren) {
     return () => media.removeEventListener("change", applyTheme);
   }, [theme]);
 
-  const alarmValue = useMemo<AlarmContextValue>(
-    () => ({
+  const alarmValue = useMemo<AlarmContextValue>(() => {
+    const updateAlarm = async (id: string, input: Partial<AlarmInput>) => {
+      const result = await storage.update(id, input);
+      try {
+        if (result) {
+          await notificationScheduler.cancel(id);
+          await notificationScheduler.schedule(result);
+        }
+      } catch (notificationError) {
+        const message = `O lembrete foi atualizado, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
+        setError(message);
+        throw new Error(message, { cause: notificationError });
+      } finally {
+        await refresh();
+      }
+    };
+
+    return {
       alarms,
       loading,
       initialLoading,
@@ -165,21 +181,7 @@ function AppProviders({ children }: PropsWithChildren) {
           await refresh();
         }
       },
-      async updateAlarm(id, input) {
-        const result = await storage.update(id, input);
-        try {
-          if (result) {
-            await notificationScheduler.cancel(id);
-            await notificationScheduler.schedule(result);
-          }
-        } catch (notificationError) {
-          const message = `O lembrete foi atualizado, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
-          setError(message);
-          throw new Error(message, { cause: notificationError });
-        } finally {
-          await refresh();
-        }
-      },
+      updateAlarm,
       async toggleComplete(id, occurrence) {
         const alarm = alarms.find((item) => item.id === id);
         if (!alarm) return;
@@ -191,21 +193,20 @@ function AppProviders({ children }: PropsWithChildren) {
             alarm.exceptions[occurrence] === "completed"
               ? undefined
               : "completed";
-          await this.updateAlarm(id, {
-            exceptions: {
-              ...alarm.exceptions,
-              ...(next ? { [occurrence]: next } : {}),
-            },
+          const exceptions = { ...alarm.exceptions };
+          if (next) exceptions[occurrence] = next;
+          else delete exceptions[occurrence];
+          await updateAlarm(id, {
+            exceptions,
           });
           return;
         }
-        await this.updateAlarm(id, {
+        await updateAlarm(id, {
           status: alarm.status === "completed" ? "pending" : "completed",
         });
       },
-    }),
-    [alarms, error, initialLoading, loading, refresh],
-  );
+    };
+  }, [alarms, error, initialLoading, loading, refresh]);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme: setThemeState }}>
