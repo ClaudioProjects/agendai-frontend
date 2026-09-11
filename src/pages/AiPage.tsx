@@ -28,8 +28,15 @@ const recordingMimeTypes = [
   "audio/ogg;codecs=opus",
 ];
 
+const audioMimeAliases: Record<string, string> = {
+  // Android WebView can label an audio-only WebM MediaRecorder stream as video.
+  "video/webm": "audio/webm",
+  "video/mp4": "audio/mp4",
+};
+
 function normalizeAudioMimeType(value: string) {
-  return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const mimeType = value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  return audioMimeAliases[mimeType] ?? mimeType;
 }
 
 function preferredRecordingMimeType() {
