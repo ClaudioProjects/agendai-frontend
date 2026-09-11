@@ -31,6 +31,7 @@ type Theme = "system" | "light" | "dark";
 type AlarmContextValue = {
   alarms: Alarm[];
   loading: boolean;
+  initialLoading: boolean;
   error: string | null;
   saveAlarm: (input: AlarmInput, id?: string) => Promise<Alarm>;
   removeAlarm: (id: string) => Promise<void>;
@@ -64,6 +65,7 @@ function errorMessage(error: unknown) {
 function AppProviders({ children }: PropsWithChildren) {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [theme, setThemeState] = useState<Theme>(
     () =>
@@ -92,6 +94,7 @@ function AppProviders({ children }: PropsWithChildren) {
       );
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }, []);
 
@@ -134,6 +137,7 @@ function AppProviders({ children }: PropsWithChildren) {
     () => ({
       alarms,
       loading,
+      initialLoading,
       error,
       refresh,
       async saveAlarm(input, id) {
@@ -200,7 +204,7 @@ function AppProviders({ children }: PropsWithChildren) {
         });
       },
     }),
-    [alarms, error, loading, refresh],
+    [alarms, error, initialLoading, loading, refresh],
   );
 
   return (
@@ -225,6 +229,29 @@ function NotFoundPage() {
       >
         Voltar para agenda
       </Link>
+    </div>
+  );
+}
+
+function PageLoading() {
+  return (
+    <div
+      className="fixed inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-center gap-2 text-[28px] font-bold tracking-[-0.05em]">
+        <span className="grid size-[39px] place-items-center rounded-[14px] bg-primary text-primary-foreground">
+          ✦
+        </span>
+        <span>
+          Agend<span className="text-accent">AI</span>
+        </span>
+      </div>
+      <p className="m-0 text-xs text-muted">Carregando sua agenda…</p>
+      <div className="mt-[22px] h-[3px] w-[26px] overflow-hidden rounded bg-border">
+        <div className="h-full w-2/5 animate-pulse rounded bg-accent" />
+      </div>
     </div>
   );
 }
@@ -294,7 +321,12 @@ const router = createBrowserRouter([
 export default function App() {
   return (
     <AppProviders>
-      <RouterProvider router={router} />
+      <AppContent />
     </AppProviders>
   );
+}
+
+function AppContent() {
+  const { initialLoading } = useAlarms();
+  return initialLoading ? <PageLoading /> : <RouterProvider router={router} />;
 }

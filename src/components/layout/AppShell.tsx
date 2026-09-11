@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { cn } from "../../libs/cn";
 import { Icon } from "../Icon";
@@ -9,30 +8,8 @@ const navItem =
   "flex flex-col items-center gap-1.5 text-[10px] font-bold text-muted no-underline [&>svg]:size-[22px]";
 
 export function AppShell() {
-  const [showSplash, setShowSplash] = useState(true);
   const location = useLocation(),
     navigate = useNavigate();
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setShowSplash(false), 850);
-    return () => window.clearTimeout(timeout);
-  }, []);
-  if (showSplash)
-    return (
-      <div className="fixed inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background">
-        <div className="flex items-center gap-2 text-[28px] font-bold tracking-[-0.05em]">
-          <span className="grid size-[39px] place-items-center rounded-[14px] bg-primary text-primary-foreground">
-            ✦
-          </span>
-          <span>
-            Agend<span className="text-accent">AI</span>
-          </span>
-        </div>
-        <p className="m-0 text-xs text-muted">Organize o seu dia</p>
-        <div className="mt-[22px] h-[3px] w-[26px] overflow-hidden rounded bg-border">
-          <div className="h-full w-2/5 animate-pulse rounded bg-accent" />
-        </div>
-      </div>
-    );
   const isAgenda =
     location.pathname === "/" || location.pathname.startsWith("/agenda");
   return (
