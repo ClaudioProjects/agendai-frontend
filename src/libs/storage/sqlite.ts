@@ -1,5 +1,5 @@
 import { CapacitorSQLite } from "@capacitor-community/sqlite";
-import { alarmSchema } from "../alarm";
+import { alarmSchema, parseStoredAlarm } from "../alarm";
 import type { AlarmStorage } from "./index";
 
 const database = "agendai";
@@ -40,7 +40,7 @@ async function rows() {
   });
   return (result.values ?? []).flatMap((row) => {
     try {
-      const parsed = alarmSchema.safeParse(JSON.parse(String(row.payload)));
+      const parsed = parseStoredAlarm(JSON.parse(String(row.payload)));
       return parsed.success ? [parsed.data] : [];
     } catch {
       return [];

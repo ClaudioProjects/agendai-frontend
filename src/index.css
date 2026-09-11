@@ -13,6 +13,11 @@
   --border: #e4dacb;
   --accent: #be4c16;
   --danger: #b95d4e;
+  --danger-foreground: #fffaf2;
+  --success: #28704c;
+  --success-foreground: #f6fff8;
+  --warning: #d19a20;
+  --warning-foreground: #3d2d00;
   --shadow: 0 12px 28px rgba(45, 39, 28, 0.08);
   --card-shadow: 0 4px 12px rgba(45, 39, 28, 0.045);
   --category-default: #a08058;
@@ -40,6 +45,12 @@
   --muted-surface: #354043;
   --border: #465255;
   --accent: #e27b4c;
+  --danger: #d87769;
+  --danger-foreground: #202a2d;
+  --success: #7ac79a;
+  --success-foreground: #173122;
+  --warning: #e3b64c;
+  --warning-foreground: #382900;
 }
 
 .theme-logo--dark {
@@ -65,6 +76,11 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --font-sans: "Roboto", sans-serif;
   --shadow-soft: var(--shadow);
   --shadow-card: var(--card-shadow);

@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import type { Alarm, AlarmInput } from "../alarm";
-import { alarmSchema } from "../alarm";
+import { alarmSchema, parseStoredAlarm } from "../alarm";
 import { sqliteAlarmStorage } from "./sqlite";
 export interface AlarmStorage {
   list(): Promise<Alarm[]>;
@@ -17,7 +17,7 @@ function readBrowserAlarms() {
     ) as unknown;
     return Array.isArray(parsed)
       ? parsed.flatMap((item) => {
-          const result = alarmSchema.safeParse(item);
+          const result = parseStoredAlarm(item);
           return result.success ? [result.data] : [];
         })
       : [];

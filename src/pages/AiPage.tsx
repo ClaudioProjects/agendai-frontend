@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
-import { type AlarmInput, EVENT_TYPES, eventMeta } from "../libs/alarm";
+import { formatCurrency, type AlarmInput } from "../libs/alarm";
+import { blankAlarm, validateAlarmInput } from "../libs/alarm-form";
 import { AiApiError, aiInterpreter, type AlarmDraft } from "../libs/ai";
 import { cn } from "../libs/cn";
 
@@ -13,9 +15,6 @@ type PageState =
   | "processing"
   | "preview";
 type InputMode = "voice" | "text";
-type EditableDraftField =
-  "title" | "description" | "date" | "time" | "eventType";
-
 const examples = [
   "Tenho dentista amanhã às 14h.",
   "Toda segunda às 8h tenho academia.",
@@ -47,7 +46,9 @@ function isReadyToSave(draft: AlarmDraft) {
   return Boolean(
     draft.date &&
     draft.time &&
-    (draft.title?.trim() || draft.description?.trim()),
+    draft.title.trim() &&
+    (draft.reminderType !== "pay_bill" ||
+      (draft.amount !== null && draft.amount > 0)),
   );
 }
 
@@ -55,8 +56,10 @@ function toAlarmInput(draft: AlarmDraft): AlarmInput {
   if (!isReadyToSave(draft))
     throw new Error("Preencha os campos obrigatórios.");
   return {
-    title: draft.title?.trim() || undefined,
+    title: draft.title.trim(),
     description: draft.description?.trim() || undefined,
+    reminderType: draft.reminderType ?? "reminder",
+    amount: draft.amount ?? undefined,
     eventType: draft.eventType ?? "DEFAULT",
     eventColor: draft.eventColor ?? undefined,
     date: draft.date!,
@@ -71,6 +74,53 @@ function toAlarmInput(draft: AlarmDraft): AlarmInput {
     notifications: draft.notifications ?? [0],
     status: draft.status ?? "pending",
     exceptions: draft.exceptions ?? {},
+  };
+}
+
+function draftToFormInput(draft: AlarmDraft): AlarmInput {
+  const fallback = blankAlarm();
+  return {
+    ...fallback,
+    title: draft.title ?? "",
+    description: draft.description ?? "",
+    reminderType: draft.reminderType ?? "reminder",
+    amount: draft.amount ?? undefined,
+    eventType: draft.eventType ?? "DEFAULT",
+    eventColor: draft.eventColor ?? "",
+    date: draft.date ?? fallback.date,
+    time: draft.time ?? fallback.time,
+    recurrence: draft.recurrence
+      ? {
+          type: draft.recurrence.type ?? "none",
+          endDate: draft.recurrence.endDate ?? undefined,
+          daysOfWeek: draft.recurrence.daysOfWeek ?? undefined,
+        }
+      : fallback.recurrence,
+    notifications: draft.notifications ?? [0],
+    status: draft.status ?? "pending",
+    exceptions: draft.exceptions ?? {},
+  };
+}
+
+function formToDraft(form: AlarmInput, draft: AlarmDraft): AlarmDraft {
+  return {
+    ...draft,
+    title: form.title,
+    description: form.description || null,
+    reminderType: form.reminderType,
+    amount: form.amount ?? null,
+    eventType: form.eventType,
+    eventColor: form.eventColor || null,
+    date: form.date,
+    time: form.time,
+    recurrence: {
+      type: form.recurrence.type,
+      endDate: form.recurrence.endDate ?? null,
+      daysOfWeek: form.recurrence.daysOfWeek ?? null,
+    },
+    notifications: form.notifications,
+    status: form.status,
+    exceptions: form.exceptions,
   };
 }
 
@@ -208,6 +258,12 @@ export function AiPage() {
   const [text, setText] = useState("");
   const [state, setState] = useState<PageState>("idle");
   const [drafts, setDrafts] = useState<AlarmDraft[]>([]);
+  const [editingDraftIndex, setEditingDraftIndex] = useState<number | null>(
+    null,
+  );
+  const [draftForm, setDraftForm] = useState<AlarmInput>(() => blankAlarm());
+  const [editorError, setEditorError] = useState("");
+  const [savingDraft, setSavingDraft] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [isMessageError, setIsMessageError] = useState(false);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(
@@ -253,6 +309,9 @@ export function AiPage() {
     setInputMode("voice");
     setText("");
     setDrafts([]);
+    setEditingDraftIndex(null);
+    setEditorError("");
+    setSavingDraft(null);
     clearMessage();
     setState("idle");
   };
@@ -286,6 +345,8 @@ export function AiPage() {
 
   const showDrafts = (result: AlarmDraft[]) => {
     setDrafts(result);
+    setEditingDraftIndex(null);
+    setEditorError("");
     setState(result.length ? "preview" : "idle");
     setMessage(
       result.length
@@ -450,32 +511,74 @@ export function AiPage() {
     }
   };
 
-  const updateDraft = (
-    index: number,
-    field: EditableDraftField,
-    value: string,
-  ) => {
+  const openDraftEditor = (index: number) => {
+    const draft = drafts[index];
+    if (!draft) return;
+    setDraftForm(draftToFormInput(draft));
+    setEditingDraftIndex(index);
+    setEditorError("");
+  };
+
+  const saveDraftChanges = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (editingDraftIndex === null) return;
+    const validationError = validateAlarmInput(draftForm);
+    if (validationError) {
+      setEditorError(validationError);
+      return;
+    }
     setDrafts((current) =>
-      current.map((draft, draftIndex) =>
-        draftIndex === index
-          ? {
-              ...draft,
-              [field]:
-                field === "eventType"
-                  ? (value as AlarmDraft["eventType"])
-                  : value || null,
-            }
-          : draft,
+      current.map((draft, index) =>
+        index === editingDraftIndex ? formToDraft(draftForm, draft) : draft,
       ),
     );
+    setEditingDraftIndex(null);
+    setEditorError("");
     clearMessage();
+  };
+
+  const removeDraft = (index: number) => {
+    const remaining = drafts.filter((_, draftIndex) => draftIndex !== index);
+    if (!remaining.length) {
+      resetToInitial();
+      return;
+    }
+    setDrafts(remaining);
+    setMessage("Lembrete removido da confirmação.");
+    setIsMessageError(false);
+  };
+
+  const createDraft = async (index: number) => {
+    const draft = drafts[index];
+    if (!draft) return;
+    if (!isReadyToSave(draft)) {
+      setMessage("Revise o título, a data, o horário e o valor da conta.");
+      setIsMessageError(true);
+      return;
+    }
+    setSavingDraft(index);
+    clearMessage();
+    try {
+      await saveAlarm(toAlarmInput(draft));
+      const remaining = drafts.filter((_, draftIndex) => draftIndex !== index);
+      if (!remaining.length) {
+        resetToInitial();
+        return;
+      }
+      setDrafts(remaining);
+      setMessage("Lembrete confirmado.");
+      setIsMessageError(false);
+    } catch (error) {
+      setMessage(messageFrom(error));
+      setIsMessageError(true);
+    } finally {
+      setSavingDraft(null);
+    }
   };
 
   const createAlarms = async () => {
     if (!drafts.every(isReadyToSave)) {
-      setMessage(
-        "Preencha título ou descrição, data e horário para continuar.",
-      );
+      setMessage("Revise o título, a data, o horário e o valor das contas.");
       setIsMessageError(true);
       return;
     }
@@ -488,6 +591,8 @@ export function AiPage() {
       }
       resetToInitial();
     } catch (error) {
+      const remaining = drafts.slice(created);
+      setDrafts(remaining);
       setState("preview");
       setMessage(
         created
@@ -503,6 +608,7 @@ export function AiPage() {
     setInputMode("text");
     setText(value);
     setDrafts([]);
+    setEditingDraftIndex(null);
     clearMessage();
   };
 
@@ -528,80 +634,73 @@ export function AiPage() {
           Confira seus lembretes
         </h1>
         <p className="mx-auto mt-3 max-w-[310px] text-sm leading-relaxed text-muted">
-          Ajuste os detalhes que quiser antes de confirmar.
+          Confirme um por vez ou todos de uma vez.
         </p>
         {feedback}
         <section className="mt-5 grid gap-3 text-left">
-          {drafts.map((draft, index) => (
-            <article
-              className="rounded-[18px] border border-border bg-surface p-4 shadow-soft"
-              key={index}
-            >
-              <p className="m-0 mb-3 text-[11px] font-bold tracking-[0.1em] text-muted uppercase">
-                Lembrete {index + 1}
-              </p>
-              <div className="grid gap-2">
-                <input
-                  className="rounded-[10px] border border-border bg-background px-3 py-2 text-sm"
-                  aria-label={`Título do lembrete ${index + 1}`}
-                  placeholder="Título"
-                  value={draft.title ?? ""}
-                  onChange={(event) =>
-                    updateDraft(index, "title", event.target.value)
-                  }
-                />
-                <input
-                  className="rounded-[10px] border border-border bg-background px-3 py-2 text-sm"
-                  aria-label={`Descrição do lembrete ${index + 1}`}
-                  placeholder="Descrição (opcional)"
-                  value={draft.description ?? ""}
-                  onChange={(event) =>
-                    updateDraft(index, "description", event.target.value)
-                  }
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    className="rounded-[10px] border border-border bg-background px-3 py-2 text-sm"
-                    type="date"
-                    aria-label={`Data do lembrete ${index + 1}`}
-                    value={draft.date ?? ""}
-                    onChange={(event) =>
-                      updateDraft(index, "date", event.target.value)
-                    }
-                  />
-                  <input
-                    className="rounded-[10px] border border-border bg-background px-3 py-2 text-sm"
-                    type="time"
-                    aria-label={`Horário do lembrete ${index + 1}`}
-                    value={draft.time ?? ""}
-                    onChange={(event) =>
-                      updateDraft(index, "time", event.target.value)
-                    }
-                  />
+          {drafts.map((draft, index) => {
+            const saving = savingDraft === index;
+            return (
+              <article
+                className="rounded-[18px] border border-border bg-surface p-3.5 shadow-card"
+                key={`${draft.title}-${index}`}
+              >
+                <div className="rounded-[14px] bg-muted-surface px-3.5 py-3">
+                  <p className="m-0 text-[11px] font-bold tracking-[0.1em] text-muted uppercase">
+                    {draft.reminderType === "pay_bill"
+                      ? "Pagar conta"
+                      : "Lembrete"}
+                  </p>
+                  <h2 className="m-0 mt-1 text-[15px] leading-snug font-bold">
+                    {draft.title}
+                  </h2>
+                  {draft.description && (
+                    <p className="m-0 mt-1 text-[13px] leading-snug text-muted">
+                      {draft.description}
+                    </p>
+                  )}
+                  <p className="m-0 mt-2 text-xs font-semibold text-foreground">
+                    {draft.date ?? "Data não identificada"} ·{" "}
+                    {draft.time ?? "Horário não identificado"}
+                    {draft.reminderType === "pay_bill" && draft.amount !== null
+                      ? ` · ${formatCurrency(draft.amount)}`
+                      : ""}
+                  </p>
                 </div>
-                <select
-                  className="rounded-[10px] border border-border bg-background px-3 py-2 text-sm"
-                  aria-label={`Categoria do lembrete ${index + 1}`}
-                  value={draft.eventType ?? "DEFAULT"}
-                  onChange={(event) =>
-                    updateDraft(index, "eventType", event.target.value)
-                  }
-                >
-                  {EVENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {eventMeta[type].label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </article>
-          ))}
+                <div className="mt-2.5 grid grid-cols-[1fr_1fr_42px] gap-2">
+                  <button
+                    className="inline-flex min-h-[41px] items-center justify-center gap-1.5 rounded-[11px] border border-border bg-background px-3 text-xs font-bold"
+                    onClick={() => openDraftEditor(index)}
+                    disabled={saving}
+                  >
+                    <Icon name="edit" size={16} /> Editar
+                  </button>
+                  <button
+                    className="inline-flex min-h-[41px] items-center justify-center gap-1.5 rounded-[11px] border-0 bg-primary px-3 text-xs font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void createDraft(index)}
+                    disabled={saving}
+                  >
+                    <Icon name="check" size={16} />
+                    {saving ? "Criando…" : "Confirmar"}
+                  </button>
+                  <button
+                    className="inline-flex min-h-[41px] items-center justify-center rounded-[11px] border-0 bg-[color-mix(in_srgb,var(--danger)_13%,transparent)] text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => removeDraft(index)}
+                    aria-label={`Remover lembrete ${index + 1}`}
+                    disabled={saving}
+                  >
+                    <Icon name="trash" size={17} />
+                  </button>
+                </div>
+              </article>
+            );
+          })}
           <button
             className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[15px] border-0 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => void createAlarms()}
-            disabled={!drafts.length}
+            disabled={!drafts.length || savingDraft !== null}
           >
-            Confirmar {drafts.length === 1 ? "lembrete" : "lembretes"}
+            Confirmar todos
             <Icon name="check" size={18} />
           </button>
           <button
@@ -611,6 +710,67 @@ export function AiPage() {
             Descartar e começar de novo
           </button>
         </section>
+        {editingDraftIndex !== null && (
+          <div
+            className="fixed inset-0 z-20 overflow-y-auto bg-[color-mix(in_srgb,var(--foreground)_45%,transparent)] p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="draft-editor-title"
+          >
+            <form
+              className="mx-auto my-3 max-w-[560px] rounded-[22px] bg-surface shadow-soft"
+              onSubmit={saveDraftChanges}
+            >
+              <header className="grid grid-cols-[42px_1fr_42px] items-center gap-2 border-b border-border px-4 py-3">
+                <span aria-hidden="true" />
+                <h2
+                  className="m-0 truncate text-center text-sm font-bold"
+                  id="draft-editor-title"
+                >
+                  Editar lembrete
+                </h2>
+                <button
+                  className="inline-flex size-[42px] items-center justify-center rounded-full border-0 bg-transparent text-accent hover:bg-muted-surface"
+                  type="button"
+                  onClick={() => setEditingDraftIndex(null)}
+                  aria-label="Fechar edição"
+                >
+                  <Icon name="close" />
+                </button>
+              </header>
+              <div className="max-h-[calc(100svh-204px)] overflow-y-auto px-5 py-5 text-left">
+                <AlarmFormFields
+                  form={draftForm}
+                  onChange={setDraftForm}
+                  allowPastDates
+                />
+                {editorError && (
+                  <p
+                    className="mt-4 rounded-[10px] bg-[color-mix(in_srgb,var(--danger)_11%,transparent)] px-3 py-2.5 text-xs text-danger"
+                    role="alert"
+                  >
+                    {editorError}
+                  </p>
+                )}
+              </div>
+              <footer className="grid grid-cols-2 gap-2 border-t border-border px-5 py-4">
+                <button
+                  className="min-h-[46px] rounded-[13px] border border-border bg-background px-4 text-sm font-bold"
+                  type="button"
+                  onClick={() => setEditingDraftIndex(null)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="min-h-[46px] rounded-[13px] border-0 bg-primary px-4 text-sm font-bold text-primary-foreground"
+                  type="submit"
+                >
+                  Salvar alterações
+                </button>
+              </footer>
+            </form>
+          </div>
+        )}
       </div>
     );
   }

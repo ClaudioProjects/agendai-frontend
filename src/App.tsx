@@ -306,7 +306,6 @@ const router = createBrowserRouter([
           { index: true, element: null },
           { path: "agenda", element: null },
           { path: "agenda/week", element: null },
-          { path: "alarms/:id", element: <AlarmDetailPage /> },
           { path: "completed", element: null },
           { path: "ai", element: null },
           { path: "settings", element: null },
@@ -316,6 +315,7 @@ const router = createBrowserRouter([
     ],
   },
   { path: "/alarms/new", element: <AlarmFormPage /> },
+  { path: "/alarms/:id", element: <AlarmDetailPage /> },
   { path: "/alarms/:id/edit", element: <AlarmFormPage /> },
 ]);
 

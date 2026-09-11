@@ -3,6 +3,7 @@ import {
   FiArrowLeft,
   FiArrowRight,
   FiBell,
+  FiCreditCard,
   FiCalendar,
   FiCheck,
   FiChevronRight,
@@ -37,6 +38,7 @@ type IconName =
   | "clock"
   | "repeat"
   | "bell"
+  | "credit-card"
   | "chevron-right"
   | "close";
 
@@ -57,6 +59,7 @@ const icons: Record<IconName, IconType> = {
   clock: FiClock,
   repeat: FiRepeat,
   bell: FiBell,
+  "credit-card": FiCreditCard,
   "chevron-right": FiChevronRight,
   close: FiX,
 };

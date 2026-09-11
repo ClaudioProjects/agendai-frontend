@@ -147,6 +147,7 @@ async function nativePermission(): Promise<NotificationPermission> {
 
 const nativeScheduler: NotificationScheduler = {
   async schedule(alarm) {
+    if (alarm.status === "cancelled") return;
     if (!alarm.notifications.length) return;
     const permission = await nativePermission();
     if (permission !== "granted") {

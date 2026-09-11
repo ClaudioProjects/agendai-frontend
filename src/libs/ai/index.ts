@@ -1,8 +1,10 @@
 import { z } from "zod";
-import { EVENT_TYPES, RECURRENCE_TYPES } from "../alarm";
+import { EVENT_TYPES, RECURRENCE_TYPES, REMINDER_TYPES } from "../alarm";
 
 const alarmDraftSchema = z.object({
   id: z.string().nullable(),
+  reminderType: z.enum(REMINDER_TYPES).nullable(),
+  amount: z.number().nonnegative().nullable(),
   eventType: z.enum(EVENT_TYPES).nullable(),
   date: z.string().date().nullable(),
   time: z
@@ -17,13 +19,13 @@ const alarmDraftSchema = z.object({
     })
     .nullable(),
   notifications: z.array(z.number().int().nonnegative()).nullable(),
-  status: z.enum(["pending", "completed"]).nullable(),
+  status: z.enum(["pending", "completed", "cancelled"]).nullable(),
   createdAt: z.string().datetime().nullable(),
   updatedAt: z.string().datetime().nullable(),
   exceptions: z
     .record(z.string(), z.enum(["completed", "cancelled"]))
     .nullable(),
-  title: z.string().nullable(),
+  title: z.string().trim().min(1),
   description: z.string().nullable(),
   eventColor: z.string().nullable(),
 });

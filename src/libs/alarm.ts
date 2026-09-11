@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const DEFAULT_ALARM_TITLE = "Lembrete sem título";
+
 export const EVENT_TYPES = [
   "DEFAULT",
   "HEALTH",
@@ -21,33 +23,46 @@ export const RECURRENCE_TYPES = [
   "monthly",
   "yearly",
 ] as const;
+export const REMINDER_TYPES = ["reminder", "pay_bill"] as const;
 
-export const alarmSchema = z.object({
-  id: z.string(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  eventType: z.enum(EVENT_TYPES).default("DEFAULT"),
-  eventColor: z.string().optional(),
-  date: z.string(),
-  time: z.string(),
-  recurrence: z.object({
-    type: z.enum(RECURRENCE_TYPES),
-    endDate: z.string().optional(),
-    daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
-  }),
-  notifications: z.array(z.number().int().min(0)),
-  status: z.enum(["pending", "completed"]),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  exceptions: z
-    .record(z.string(), z.enum(["cancelled", "completed"]))
-    .default({}),
-});
+export const alarmSchema = z
+  .object({
+    id: z.string(),
+    title: z.string().trim().min(1),
+    description: z.string().optional(),
+    reminderType: z.enum(REMINDER_TYPES).default("reminder"),
+    amount: z.number().positive().optional(),
+    eventType: z.enum(EVENT_TYPES).default("DEFAULT"),
+    eventColor: z.string().optional(),
+    date: z.string(),
+    time: z.string(),
+    recurrence: z.object({
+      type: z.enum(RECURRENCE_TYPES),
+      endDate: z.string().optional(),
+      daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+    }),
+    notifications: z.array(z.number().int().min(0)),
+    status: z.enum(["pending", "completed", "cancelled"]),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    exceptions: z
+      .record(z.string(), z.enum(["cancelled", "completed"]))
+      .default({}),
+  })
+  .superRefine((alarm, context) => {
+    if (alarm.reminderType === "pay_bill" && alarm.amount === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["amount"],
+        message: "O valor é obrigatório para pagar conta.",
+      });
+    }
+  });
 export type Alarm = z.infer<typeof alarmSchema>;
 export type AlarmInput = Omit<Alarm, "id" | "createdAt" | "updatedAt">;
 export type EventType = (typeof EVENT_TYPES)[number];
 export type RecurrenceType = (typeof RECURRENCE_TYPES)[number];
-export const DEFAULT_ALARM_TITLE = "Lembrete sem título";
+export type ReminderType = (typeof REMINDER_TYPES)[number];
 export const eventMeta: Record<
   EventType,
   { label: string; icon: string; color: string }
@@ -82,7 +97,14 @@ export const notificationOptions = [
   { value: 1440, label: "1 dia antes" },
 ];
 export function getAlarmTitle(alarm: Pick<Alarm, "title">) {
-  return alarm.title?.trim() || DEFAULT_ALARM_TITLE;
+  return alarm.title;
+}
+
+export function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(amount);
 }
 export function localDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -90,7 +112,7 @@ export function localDateKey(date: Date) {
 export function dateFromParts(date: string, time: string) {
   return new Date(`${date}T${time}:00`);
 }
-export function isAlarmForDate(alarm: Alarm, dateKey: string) {
+export function isAlarmOccurrence(alarm: Alarm, dateKey: string) {
   if (alarm.recurrence.type === "none") return alarm.date === dateKey;
   if (
     dateKey < alarm.date ||
@@ -99,7 +121,6 @@ export function isAlarmForDate(alarm: Alarm, dateKey: string) {
     return false;
   const date = new Date(`${dateKey}T12:00:00`),
     start = new Date(`${alarm.date}T12:00:00`);
-  if (alarm.exceptions[dateKey] === "cancelled") return false;
   if (alarm.recurrence.type === "daily") return true;
   if (alarm.recurrence.type === "weekly")
     return (
@@ -112,6 +133,27 @@ export function isAlarmForDate(alarm: Alarm, dateKey: string) {
   return (
     date.getDate() === start.getDate() && date.getMonth() === start.getMonth()
   );
+}
+
+export function isAlarmForDate(alarm: Alarm, dateKey: string) {
+  return (
+    alarm.status !== "cancelled" &&
+    alarm.exceptions[dateKey] !== "cancelled" &&
+    isAlarmOccurrence(alarm, dateKey)
+  );
+}
+
+export function parseStoredAlarm(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return alarmSchema.safeParse(value);
+  const stored = value as Record<string, unknown>;
+  return alarmSchema.safeParse({
+    ...stored,
+    title:
+      typeof stored.title === "string" && stored.title.trim()
+        ? stored.title
+        : DEFAULT_ALARM_TITLE,
+  });
 }
 export function formatDate(
   dateKey: string,
