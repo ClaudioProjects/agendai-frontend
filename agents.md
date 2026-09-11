@@ -56,15 +56,15 @@ bunx prettier --write .
 
 ## Commits
 
-- Trabalhar por fase `FE-XXX`.
-- Cada fase concluída deve gerar um commit próprio.
+- Trabalhar por feature ou correção.
+- Cada feature ou correção concluída deve gerar um commit próprio.
 - Evitar misturar fases não relacionadas.
 - Padrão recomendado:
 
 ```text
-feat(FE-010): implement home agenda
-chore(FE-001): setup frontend
-fix(FE-008): reschedule local notifications
+feat: implement home agenda
+chore: setup frontend
+fix: reschedule local notifications
 ```
 
 - Antes do commit, executar as validações disponíveis: typecheck, lint, testes e build, além de validar manualmente o fluxo alterado quando aplicável.
