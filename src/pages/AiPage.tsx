@@ -87,30 +87,32 @@ function microphoneMessage(error: unknown) {
   return "Não foi possível acessar o microfone. Verifique se ele está disponível e tente novamente.";
 }
 
-function AudioWaveform({ stream }: { stream: MediaStream | null }) {
+function formatRecordingDuration(elapsedMs: number) {
+  const seconds = Math.floor(elapsedMs / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function AudioWaveform({
+  stream,
+  isPaused,
+}: {
+  stream: MediaStream | null;
+  isPaused: boolean;
+}) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
+  const levels = useRef<number[]>([]);
 
   useEffect(() => {
-    if (!stream || !canvas.current) return;
+    const element = canvas.current;
+    if (!element) return;
 
-    const audioContext = new AudioContext();
-    const analyser = audioContext.createAnalyser();
-    const source = audioContext.createMediaStreamSource(stream);
-    const samples = new Uint8Array(analyser.frequencyBinCount);
-    let frame = 0;
-
-    analyser.fftSize = 64;
-    analyser.smoothingTimeConstant = 0.82;
-    source.connect(analyser);
-    void audioContext.resume();
-
-    const draw = () => {
-      const element = canvas.current;
-      if (!element) return;
+    const drawWaveform = () => {
       const context = element.getContext("2d");
       const width = element.clientWidth;
       const height = element.clientHeight;
       const pixelRatio = window.devicePixelRatio || 1;
+      if (!context || !width || !height) return;
+
       if (
         element.width !== Math.round(width * pixelRatio) ||
         element.height !== Math.round(height * pixelRatio)
@@ -118,38 +120,67 @@ function AudioWaveform({ stream }: { stream: MediaStream | null }) {
         element.width = Math.round(width * pixelRatio);
         element.height = Math.round(height * pixelRatio);
       }
-      if (!context) return;
 
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       context.clearRect(0, 0, width, height);
-      analyser.getByteFrequencyData(samples);
       context.fillStyle = getComputedStyle(document.documentElement)
-        .getPropertyValue("--accent")
+        .getPropertyValue("--background")
         .trim();
 
-      const bars = 24;
-      const gap = 3;
-      const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
-      for (let index = 0; index < bars; index += 1) {
-        const sample = samples[Math.floor((index / bars) * samples.length)];
-        const barHeight = Math.max(4, (sample / 255) * height);
+      const barWidth = 1.5;
+      const gap = 1.5;
+      const capacity = Math.max(1, Math.floor(width / (barWidth + gap)));
+      const visibleLevels = levels.current.slice(-capacity);
+      visibleLevels.forEach((level, index) => {
+        const barHeight = Math.max(3, level * height);
         context.fillRect(
           index * (barWidth + gap),
           (height - barHeight) / 2,
           barWidth,
           barHeight,
         );
+      });
+      return capacity;
+    };
+
+    if (!stream || isPaused) {
+      drawWaveform();
+      return;
+    }
+
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.76;
+    const samples = new Uint8Array(analyser.fftSize);
+    let frame = 0;
+    let previousSampleAt = 0;
+
+    source.connect(analyser);
+    void audioContext.resume();
+
+    const draw = (now: number) => {
+      if (now - previousSampleAt >= 160) {
+        analyser.getByteTimeDomainData(samples);
+        const rootMeanSquare = Math.sqrt(
+          samples.reduce((sum, sample) => {
+            const value = (sample - 128) / 128;
+            return sum + value * value;
+          }, 0) / samples.length,
+        );
+        levels.current.push(Math.min(1, Math.max(0.1, rootMeanSquare * 12)));
+        const capacity = drawWaveform() ?? 1;
+        levels.current = levels.current.slice(-capacity);
+        previousSampleAt = now;
       }
       frame = window.requestAnimationFrame(draw);
     };
 
-    const resize = () => {
-      window.cancelAnimationFrame(frame);
-      draw();
-    };
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas.current);
-    draw();
+    const observer = new ResizeObserver(drawWaveform);
+    observer.observe(element);
+    drawWaveform();
+    frame = window.requestAnimationFrame(draw);
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -157,14 +188,16 @@ function AudioWaveform({ stream }: { stream: MediaStream | null }) {
       source.disconnect();
       void audioContext.close();
     };
-  }, [stream]);
+  }, [stream, isPaused]);
 
   return (
     <canvas
-      className="h-[54px] w-full"
+      className="h-[28px] min-w-0 flex-1"
       ref={canvas}
       role="img"
-      aria-label="Faixa de áudio sendo gravada"
+      aria-label={
+        isPaused ? "Faixa de áudio pausada" : "Faixa de áudio sendo gravada"
+      }
     />
   );
 }
@@ -180,6 +213,8 @@ export function AiPage() {
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(
     null,
   );
+  const [isRecordingPaused, setIsRecordingPaused] = useState(false);
+  const [recordingElapsedMs, setRecordingElapsedMs] = useState(0);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -187,6 +222,8 @@ export function AiPage() {
   const shouldSendRecording = useRef(false);
   const requestVersion = useRef(0);
   const mounted = useRef(true);
+  const recordingElapsedBeforePause = useRef(0);
+  const recordingSegmentStartedAt = useRef<number | null>(null);
 
   const clearMessage = () => {
     setMessage("");
@@ -199,13 +236,19 @@ export function AiPage() {
     recorder.current = null;
     chunks.current = [];
     recordingMimeType.current = "";
-    if (mounted.current) setRecordingStream(null);
+    recordingElapsedBeforePause.current = 0;
+    recordingSegmentStartedAt.current = null;
+    if (mounted.current) {
+      setRecordingStream(null);
+      setIsRecordingPaused(false);
+      setRecordingElapsedMs(0);
+    }
   };
 
   const resetToInitial = () => {
     requestVersion.current += 1;
     shouldSendRecording.current = false;
-    if (recorder.current?.state === "recording") recorder.current.stop();
+    if (recorder.current?.state !== "inactive") recorder.current?.stop();
     releaseRecording();
     setInputMode("voice");
     setText("");
@@ -220,10 +263,26 @@ export function AiPage() {
       mounted.current = false;
       requestVersion.current += 1;
       shouldSendRecording.current = false;
-      if (recorder.current?.state === "recording") recorder.current.stop();
+      if (recorder.current?.state !== "inactive") recorder.current?.stop();
       releaseRecording();
     };
   }, []);
+
+  useEffect(() => {
+    if (state !== "recording" || isRecordingPaused) return;
+
+    const updateDuration = () => {
+      const segmentStartedAt = recordingSegmentStartedAt.current;
+      if (segmentStartedAt === null) return;
+      setRecordingElapsedMs(
+        recordingElapsedBeforePause.current +
+          Math.max(0, performance.now() - segmentStartedAt),
+      );
+    };
+    updateDuration();
+    const timer = window.setInterval(updateDuration, 250);
+    return () => window.clearInterval(timer);
+  }, [isRecordingPaused, state]);
 
   const showDrafts = (result: AlarmDraft[]) => {
     setDrafts(result);
@@ -306,6 +365,10 @@ export function AiPage() {
       chunks.current = [];
       recordingMimeType.current = normalizeAudioMimeType(media.mimeType);
       shouldSendRecording.current = false;
+      recordingElapsedBeforePause.current = 0;
+      recordingSegmentStartedAt.current = performance.now();
+      setRecordingElapsedMs(0);
+      setIsRecordingPaused(false);
       media.ondataavailable = (event) => {
         if (!event.data.size) return;
         chunks.current.push(event.data);
@@ -347,7 +410,11 @@ export function AiPage() {
   };
 
   const sendRecording = () => {
-    if (recorder.current?.state !== "recording") return;
+    if (
+      recorder.current?.state !== "recording" &&
+      recorder.current?.state !== "paused"
+    )
+      return;
     shouldSendRecording.current = true;
     setState("processing");
     recorder.current.stop();
@@ -355,10 +422,32 @@ export function AiPage() {
 
   const cancelRecording = () => {
     shouldSendRecording.current = false;
-    if (recorder.current?.state === "recording") recorder.current.stop();
+    if (recorder.current?.state !== "inactive") recorder.current?.stop();
     releaseRecording();
     setState("idle");
     clearMessage();
+  };
+
+  const toggleRecordingPause = () => {
+    const media = recorder.current;
+    if (!media) return;
+    if (media.state === "recording") {
+      media.pause();
+      const segmentStartedAt = recordingSegmentStartedAt.current;
+      recordingElapsedBeforePause.current +=
+        segmentStartedAt === null
+          ? 0
+          : Math.max(0, performance.now() - segmentStartedAt);
+      recordingSegmentStartedAt.current = null;
+      setRecordingElapsedMs(recordingElapsedBeforePause.current);
+      setIsRecordingPaused(true);
+      return;
+    }
+    if (media.state === "paused") {
+      media.resume();
+      recordingSegmentStartedAt.current = performance.now();
+      setIsRecordingPaused(false);
+    }
   };
 
   const updateDraft = (
@@ -626,21 +715,51 @@ export function AiPage() {
       ) : state === "recording" ? (
         <section className="mx-auto mt-7 max-w-[360px]">
           <div className="relative mx-auto grid size-[148px] place-items-center rounded-full bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] before:absolute before:inset-3 before:rounded-full before:border before:border-[color-mix(in_srgb,var(--accent)_25%,transparent)]">
-            <div className="grid size-[116px] animate-pulse place-items-center rounded-full bg-accent text-primary-foreground shadow-soft">
+            <div
+              className={cn(
+                "grid size-[116px] place-items-center rounded-full bg-accent text-primary-foreground shadow-soft",
+                !isRecordingPaused && "animate-pulse",
+              )}
+            >
               <Icon name="mic" size={52} />
             </div>
           </div>
           <p className="m-0 mt-5 text-base font-bold text-accent">
-            Gravando áudio…
+            {isRecordingPaused ? "Gravação pausada" : "Gravando áudio…"}
           </p>
-          <div className="mt-5 flex items-center gap-3 rounded-[18px] border border-border bg-surface px-4 py-3 shadow-card">
-            <AudioWaveform stream={recordingStream} />
+          <div className="mt-5 flex items-center gap-2 rounded-[11px] bg-foreground px-3 py-2.5 text-background shadow-card">
+            <span
+              className={cn(
+                "size-2 shrink-0 rounded-full bg-danger",
+                !isRecordingPaused && "animate-pulse",
+              )}
+              aria-hidden="true"
+            />
+            <time
+              className="shrink-0 text-lg leading-none font-bold tabular-nums"
+              aria-label={`Duração gravada: ${formatRecordingDuration(recordingElapsedMs)}`}
+            >
+              {formatRecordingDuration(recordingElapsedMs)}
+            </time>
+            <AudioWaveform
+              stream={recordingStream}
+              isPaused={isRecordingPaused}
+            />
             <button
-              className="grid size-[48px] shrink-0 place-items-center rounded-[14px] border-0 bg-primary text-primary-foreground"
+              className="grid size-9 shrink-0 place-items-center rounded-full border-0 bg-transparent text-background"
+              onClick={toggleRecordingPause}
+              aria-label={
+                isRecordingPaused ? "Retomar gravação" : "Pausar gravação"
+              }
+            >
+              <Icon name={isRecordingPaused ? "play" : "pause"} size={19} />
+            </button>
+            <button
+              className="grid size-9 shrink-0 place-items-center rounded-full border-0 bg-background text-foreground"
               onClick={sendRecording}
               aria-label="Enviar áudio"
             >
-              <Icon name="arrow-right" size={21} />
+              <Icon name="arrow-right" size={18} />
             </button>
           </div>
           <button

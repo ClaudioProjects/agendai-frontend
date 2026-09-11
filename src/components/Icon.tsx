@@ -10,7 +10,9 @@ import {
   FiEdit2,
   FiMic,
   FiMoreHorizontal,
+  FiPause,
   FiPlus,
+  FiPlay,
   FiRepeat,
   FiSettings,
   FiTrash2,
@@ -25,6 +27,8 @@ type IconName =
   | "check"
   | "more"
   | "plus"
+  | "pause"
+  | "play"
   | "arrow-left"
   | "arrow-right"
   | "mic"
@@ -43,6 +47,8 @@ const icons: Record<IconName, IconType> = {
   check: FiCheck,
   more: FiMoreHorizontal,
   plus: FiPlus,
+  pause: FiPause,
+  play: FiPlay,
   "arrow-left": FiArrowLeft,
   "arrow-right": FiArrowRight,
   mic: FiMic,
