@@ -18,6 +18,7 @@ export interface NotificationScheduler {
   cancel(alarmId: string): Promise<void>;
   checkPermission(): Promise<NotificationPermission>;
   requestPermission(): Promise<NotificationPermission>;
+  requestExactAlarmPermission(): Promise<void>;
   reconcile(alarms: Alarm[]): Promise<void>;
 }
 
@@ -36,6 +37,7 @@ const browserScheduler: NotificationScheduler = {
     if (!("Notification" in window)) return "denied";
     return Notification.requestPermission();
   },
+  async requestExactAlarmPermission() {},
   async reconcile() {},
 };
 
@@ -201,6 +203,13 @@ const nativeScheduler: NotificationScheduler = {
     const result = await LocalNotifications.requestPermissions();
     return normalizePermission(result.display);
   },
+  async requestExactAlarmPermission() {
+    if (Capacitor.getPlatform() !== "android") return;
+    const setting = await LocalNotifications.checkExactNotificationSetting();
+    if (setting.exact_alarm !== "granted") {
+      await LocalNotifications.changeExactNotificationSetting();
+    }
+  },
   async reconcile(alarms) {
     if ((await nativePermission()) !== "granted") return;
     for (const alarm of alarms) {
@@ -219,5 +228,6 @@ export const notificationScheduler: NotificationScheduler = {
   cancel: (id) => scheduler().cancel(id),
   checkPermission: () => scheduler().checkPermission(),
   requestPermission: () => scheduler().requestPermission(),
+  requestExactAlarmPermission: () => scheduler().requestExactAlarmPermission(),
   reconcile: (alarms) => scheduler().reconcile(alarms),
 };

@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -67,6 +68,7 @@ function AppProviders({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasRequestedNotificationPermission = useRef(false);
   const [theme, setThemeState] = useState<Theme>(
     () =>
       (window.localStorage.getItem("agendai:theme") as Theme | null) ??
@@ -103,6 +105,31 @@ function AppProviders({ children }: PropsWithChildren) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh(true);
   }, [refresh]);
+
+  useEffect(() => {
+    if (hasRequestedNotificationPermission.current) return;
+    hasRequestedNotificationPermission.current = true;
+
+    const requestNotificationPermissionOnStartup = async () => {
+      try {
+        let permission = await notificationScheduler.checkPermission();
+        if (permission === "default") {
+          permission = await notificationScheduler.requestPermission();
+        }
+
+        await notificationScheduler.requestExactAlarmPermission();
+        if (permission !== "granted") return;
+
+        // The first reconciliation can run before the native prompt is answered.
+        // Run it again after permission is granted so existing alarms are scheduled.
+        await notificationScheduler.reconcile(await storage.list());
+      } catch {
+        // A permission prompt must never prevent the agenda from loading.
+      }
+    };
+
+    void requestNotificationPermissionOnStartup();
+  }, []);
 
   useEffect(() => {
     const reconcileOnResume = () => {
