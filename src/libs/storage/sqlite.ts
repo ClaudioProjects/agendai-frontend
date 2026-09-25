@@ -35,17 +35,19 @@ async function rows() {
   await ensureDatabase();
   const result = await CapacitorSQLite.query({
     database,
-    statement:
-      "SELECT payload FROM alarms ORDER BY json_extract(payload, '$.date'), json_extract(payload, '$.time');",
+    statement: "SELECT payload FROM alarms;",
+    values: [],
   });
-  return (result.values ?? []).flatMap((row) => {
-    try {
-      const parsed = parseStoredAlarm(JSON.parse(String(row.payload)));
-      return parsed.success ? [parsed.data] : [];
-    } catch {
-      return [];
-    }
-  });
+  return (result.values ?? [])
+    .flatMap((row) => {
+      try {
+        const parsed = parseStoredAlarm(JSON.parse(String(row.payload)));
+        return parsed.success ? [parsed.data] : [];
+      } catch {
+        return [];
+      }
+    })
+    .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 }
 
 export const sqliteAlarmStorage: AlarmStorage = {
