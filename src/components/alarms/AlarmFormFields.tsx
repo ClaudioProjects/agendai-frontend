@@ -36,14 +36,13 @@ export function AlarmFormFields({
   return (
     <div className="grid gap-[18px]">
       <label className={label}>
-        Título
+        Título <span className="font-normal">(opcional)</span>
         <input
           className={input}
           value={form.title}
           onChange={(event) => set("title", event.target.value)}
           placeholder="Ex.: Consulta com o dentista"
           autoFocus={autoFocus}
-          required
         />
       </label>
       <label className={label}>

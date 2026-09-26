@@ -65,8 +65,11 @@ export function AlarmFormPage() {
       ...(firstDate ? { date: firstDate } : {}),
       recurrence: {
         ...current.recurrence,
-        type: nextSchedule.recurring ? "weekly" : "none",
-        daysOfWeek: nextSchedule.recurring ? nextSchedule.daysOfWeek : [],
+        type: nextSchedule.recurrenceType,
+        daysOfWeek:
+          nextSchedule.recurrenceType === "weekly"
+            ? nextSchedule.daysOfWeek
+            : [],
       },
     }));
   };

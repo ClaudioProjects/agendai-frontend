@@ -1,5 +1,10 @@
 import { CapacitorSQLite } from "@capacitor-community/sqlite";
-import { alarmSchema, parseStoredAlarm, type AlarmInput } from "../alarm";
+import {
+  alarmSchema,
+  normalizeAlarmTitle,
+  parseStoredAlarm,
+  type AlarmInput,
+} from "../alarm";
 import type { AlarmBatchEntry, AlarmStorage } from "./index";
 
 const database = "agendai";
@@ -58,11 +63,18 @@ async function saveSqliteBatch(entries: AlarmBatchEntry[]) {
     if (id) {
       const alarm = existing.get(id);
       if (!alarm) throw new Error("Lembrete não encontrado.");
-      return alarmSchema.parse({ ...alarm, ...input, id, updatedAt: now });
+      return alarmSchema.parse({
+        ...alarm,
+        ...input,
+        id,
+        title: normalizeAlarmTitle(input.title ?? alarm.title),
+        updatedAt: now,
+      });
     }
     return alarmSchema.parse({
       ...input,
       id: crypto.randomUUID(),
+      title: normalizeAlarmTitle(input.title),
       createdAt: now,
       updatedAt: now,
     });

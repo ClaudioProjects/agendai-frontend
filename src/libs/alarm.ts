@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const DEFAULT_ALARM_TITLE = "Lembrete sem título";
+export const DEFAULT_ALARM_TITLE = "Lembrete";
 
 export const EVENT_TYPES = [
   "DEFAULT",
@@ -63,6 +63,13 @@ export type AlarmInput = Omit<Alarm, "id" | "createdAt" | "updatedAt">;
 export type EventType = (typeof EVENT_TYPES)[number];
 export type RecurrenceType = (typeof RECURRENCE_TYPES)[number];
 export type ReminderType = (typeof REMINDER_TYPES)[number];
+
+export function normalizeAlarmTitle(value: unknown) {
+  return typeof value === "string" && value.trim()
+    ? value.trim()
+    : DEFAULT_ALARM_TITLE;
+}
+
 export const eventMeta: Record<
   EventType,
   { label: string; icon: string; color: string }
@@ -97,7 +104,7 @@ export const notificationOptions = [
   { value: 1440, label: "1 dia antes" },
 ];
 export function getAlarmTitle(alarm: Pick<Alarm, "title">) {
-  return alarm.title;
+  return normalizeAlarmTitle(alarm.title);
 }
 
 export function formatCurrency(amount: number) {
@@ -149,10 +156,7 @@ export function parseStoredAlarm(value: unknown) {
   const stored = value as Record<string, unknown>;
   return alarmSchema.safeParse({
     ...stored,
-    title:
-      typeof stored.title === "string" && stored.title.trim()
-        ? stored.title
-        : DEFAULT_ALARM_TITLE,
+    title: normalizeAlarmTitle(stored.title),
   });
 }
 export function formatDate(

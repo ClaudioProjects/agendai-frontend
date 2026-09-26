@@ -68,6 +68,6 @@ describe("isAlarmForDate", () => {
   test("normaliza títulos ausentes em lembretes já armazenados", () => {
     const result = parseStoredAlarm({ ...alarm(), title: "" });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.title).toBe("Lembrete sem título");
+    if (result.success) expect(result.data.title).toBe("Lembrete");
   });
 });

@@ -37,7 +37,7 @@ describe("agenda de alarmes", () => {
     const alarms = scheduledAlarmInputs(input(), {
       weekAnchor: "2026-09-09",
       daysOfWeek: [1, 3, 5],
-      recurring: false,
+      recurrenceType: "none",
     });
 
     expect(alarms.map((alarm) => alarm.date)).toEqual([
@@ -57,7 +57,7 @@ describe("agenda de alarmes", () => {
     const [alarm] = scheduledAlarmInputs(input(), {
       weekAnchor: "2026-09-09",
       daysOfWeek: [1, 3, 5],
-      recurring: true,
+      recurrenceType: "weekly",
     });
 
     expect(alarm.date).toBe("2026-09-07");
@@ -76,7 +76,21 @@ describe("agenda de alarmes", () => {
     ).toEqual({
       weekAnchor: "2026-09-09",
       daysOfWeek: [3],
-      recurring: true,
+      recurrenceType: "monthly",
+    });
+  });
+
+  test("usa o primeiro dia selecionado para recorrências mensais", () => {
+    const [alarm] = scheduledAlarmInputs(input(), {
+      weekAnchor: "2026-09-09",
+      daysOfWeek: [1, 3],
+      recurrenceType: "monthly",
+    });
+
+    expect(alarm.date).toBe("2026-09-07");
+    expect(alarm.recurrence).toEqual({
+      type: "monthly",
+      endDate: undefined,
     });
   });
 
@@ -84,5 +98,9 @@ describe("agenda de alarmes", () => {
     expect(validateAlarmInput(input({ time: "24:00" }))).toBe(
       "Escolha um horário válido.",
     );
+  });
+
+  test("aceita título vazio para usar o nome padrão no salvamento", () => {
+    expect(validateAlarmInput(input({ title: "  " }))).toBeNull();
   });
 });

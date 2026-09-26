@@ -5,10 +5,13 @@ import {
   type KeyboardEvent,
   type UIEvent,
 } from "react";
-import { formatDate, localDateKey } from "../../libs/alarm";
+import {
+  formatDate,
+  localDateKey,
+  type RecurrenceType,
+} from "../../libs/alarm";
 import { weekDatesForDays, type AlarmSchedule } from "../../libs/alarm-form";
 import { cn } from "../../libs/cn";
-import { Icon } from "../Icon";
 
 const ROW_HEIGHT = 44;
 const WHEEL_CYCLES = 5;
@@ -21,6 +24,13 @@ const weekDayNames = [
   "quinta-feira",
   "sexta-feira",
   "sábado",
+];
+const recurrenceOptions: Array<{ value: RecurrenceType; label: string }> = [
+  { value: "none", label: "Não se repete" },
+  { value: "daily", label: "Todos os dias" },
+  { value: "weekly", label: "Toda semana" },
+  { value: "monthly", label: "Todo mês" },
+  { value: "yearly", label: "Todo ano" },
 ];
 
 function paddedValues(length: number) {
@@ -132,7 +142,6 @@ function WheelPicker({
         {label}
       </span>
       <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 top-11 z-1 border-y border-[color-mix(in_srgb,var(--accent)_30%,var(--border))]" />
         <div
           ref={viewportRef}
           className="h-[132px] snap-y snap-mandatory overflow-y-auto py-11 text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -189,10 +198,26 @@ export function AlarmScheduleFields({
   const changeTime = (nextHour: string, nextMinute: string) =>
     onTimeChange(`${nextHour}:${nextMinute}`);
   const toggleDay = (day: number) => {
-    const nextDays = selectedDays.has(day)
-      ? schedule.daysOfWeek.filter((item) => item !== day)
-      : [...schedule.daysOfWeek, day].sort((first, second) => first - second);
+    const allowsMultipleDays =
+      schedule.recurrenceType === "none" ||
+      schedule.recurrenceType === "weekly";
+    const nextDays = allowsMultipleDays
+      ? selectedDays.has(day)
+        ? schedule.daysOfWeek.filter((item) => item !== day)
+        : [...schedule.daysOfWeek, day].sort((first, second) => first - second)
+      : selectedDays.has(day)
+        ? []
+        : [day];
     onScheduleChange({ ...schedule, daysOfWeek: nextDays });
+  };
+  const changeRecurrence = (recurrenceType: RecurrenceType) => {
+    const daysOfWeek =
+      recurrenceType !== "none" &&
+      recurrenceType !== "weekly" &&
+      schedule.daysOfWeek.length > 1
+        ? [schedule.daysOfWeek[0]]
+        : schedule.daysOfWeek;
+    onScheduleChange({ ...schedule, recurrenceType, daysOfWeek });
   };
   const openPicker = () => {
     const input = dateInput.current;
@@ -222,35 +247,27 @@ export function AlarmScheduleFields({
       </div>
 
       <div className="mt-4 border-t border-border pt-4">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-[11px] font-bold tracking-[0.02em] text-muted">
-            Dias da semana
-          </span>
-          <input
-            ref={dateInput}
-            className="sr-only"
-            type="date"
-            value={schedule.weekAnchor}
-            min={allowPastDates ? undefined : localDateKey(new Date())}
-            onChange={(event) =>
-              onScheduleChange({
-                ...schedule,
-                weekAnchor: event.target.value || schedule.weekAnchor,
-              })
-            }
-          />
-          <button
-            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-[9px] border border-border bg-background px-2 text-[10px] font-bold text-accent hover:bg-muted-surface"
-            type="button"
-            onClick={openPicker}
-            aria-label="Escolher outra semana"
-          >
-            <Icon name="calendar" size={14} />
-            <span className="max-w-[145px] truncate">
-              {weekLabel(schedule.weekAnchor)}
-            </span>
-          </button>
-        </div>
+        <input
+          ref={dateInput}
+          className="sr-only"
+          type="date"
+          value={schedule.weekAnchor}
+          min={allowPastDates ? undefined : localDateKey(new Date())}
+          onChange={(event) =>
+            onScheduleChange({
+              ...schedule,
+              weekAnchor: event.target.value || schedule.weekAnchor,
+            })
+          }
+        />
+        <button
+          className="mb-2 inline-flex min-h-[32px] max-w-full items-center rounded-[8px] border-0 bg-transparent px-0 py-1 text-left text-[11px] font-bold text-accent hover:text-foreground hover:underline hover:underline-offset-4"
+          type="button"
+          onClick={openPicker}
+          aria-label="Escolher outra semana"
+        >
+          <span className="truncate">{weekLabel(schedule.weekAnchor)}</span>
+        </button>
         <div className="grid grid-cols-7 gap-1.5">
           {weekDayLabels.map((label, day) => (
             <button
@@ -271,37 +288,22 @@ export function AlarmScheduleFields({
         </div>
       </div>
 
-      <button
-        className={cn(
-          "mt-4 flex min-h-[46px] w-full items-center justify-between rounded-[13px] border px-3 text-left text-[12px] font-bold transition",
-          schedule.recurring
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-border bg-background text-foreground hover:bg-muted-surface",
-        )}
-        type="button"
-        onClick={() =>
-          onScheduleChange({ ...schedule, recurring: !schedule.recurring })
-        }
-        aria-pressed={schedule.recurring}
-      >
-        <span>Alarme recorrente</span>
-        <span
-          className={cn(
-            "flex h-6 w-10 items-center rounded-full p-0.5 transition",
-            schedule.recurring
-              ? "bg-primary-foreground/30"
-              : "bg-[color-mix(in_srgb,var(--muted)_30%,transparent)]",
-          )}
+      <label className="mt-4 block text-[11px] font-bold tracking-[0.02em] text-muted">
+        Recorrência
+        <select
+          className="mt-2 block min-h-[43px] w-full rounded-[12px] border border-border bg-background px-3 text-sm font-bold text-foreground outline-0 focus:border-accent focus:ring-3 focus:ring-[color-mix(in_srgb,var(--accent)_17%,transparent)]"
+          value={schedule.recurrenceType}
+          onChange={(event) =>
+            changeRecurrence(event.target.value as RecurrenceType)
+          }
         >
-          <span
-            className={cn(
-              "size-5 rounded-full bg-primary-foreground shadow-sm transition-transform",
-              !schedule.recurring && "translate-x-0 bg-muted",
-              schedule.recurring && "translate-x-4",
-            )}
-          />
-        </span>
-      </button>
+          {recurrenceOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
     </section>
   );
 }

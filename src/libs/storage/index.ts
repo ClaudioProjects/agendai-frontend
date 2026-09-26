@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import type { Alarm, AlarmInput } from "../alarm";
-import { alarmSchema, parseStoredAlarm } from "../alarm";
+import { alarmSchema, normalizeAlarmTitle, parseStoredAlarm } from "../alarm";
 import { sqliteAlarmStorage } from "./sqlite";
 
 export type AlarmBatchEntry = { input: AlarmInput; id?: string };
@@ -45,6 +45,7 @@ function saveBrowserBatch(entries: AlarmBatchEntry[]) {
         ...existing,
         ...input,
         id,
+        title: normalizeAlarmTitle(input.title ?? existing.title),
         updatedAt: now,
       });
       byId.set(id, alarm);
@@ -53,6 +54,7 @@ function saveBrowserBatch(entries: AlarmBatchEntry[]) {
     const alarm = alarmSchema.parse({
       ...input,
       id: crypto.randomUUID(),
+      title: normalizeAlarmTitle(input.title),
       createdAt: now,
       updatedAt: now,
     });

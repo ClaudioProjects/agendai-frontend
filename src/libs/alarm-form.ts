@@ -1,9 +1,14 @@
-import { dateFromParts, localDateKey, type AlarmInput } from "./alarm";
+import {
+  dateFromParts,
+  localDateKey,
+  type AlarmInput,
+  type RecurrenceType,
+} from "./alarm";
 
 export type AlarmSchedule = {
   weekAnchor: string;
   daysOfWeek: number[];
-  recurring: boolean;
+  recurrenceType: RecurrenceType;
 };
 
 function dateAtNoon(dateKey: string) {
@@ -33,7 +38,6 @@ export function weekDatesForDays(weekAnchor: string, daysOfWeek: number[]) {
 }
 
 export function scheduleFromAlarmInput(input: AlarmInput): AlarmSchedule {
-  const recurring = input.recurrence.type !== "none";
   const daysOfWeek =
     input.recurrence.type === "weekly" && input.recurrence.daysOfWeek?.length
       ? input.recurrence.daysOfWeek
@@ -44,7 +48,7 @@ export function scheduleFromAlarmInput(input: AlarmInput): AlarmSchedule {
     daysOfWeek: [...new Set(daysOfWeek)].sort(
       (first, second) => first - second,
     ),
-    recurring,
+    recurrenceType: input.recurrence.type,
   };
 }
 
@@ -55,14 +59,16 @@ export function scheduledAlarmInputs(
   const dates = weekDatesForDays(schedule.weekAnchor, schedule.daysOfWeek);
   if (!dates.length) return [];
 
-  if (schedule.recurring) {
+  if (schedule.recurrenceType !== "none") {
     return [
       {
         ...form,
         date: dates[0],
         recurrence: {
-          type: "weekly" as const,
-          daysOfWeek: schedule.daysOfWeek,
+          type: schedule.recurrenceType,
+          ...(schedule.recurrenceType === "weekly"
+            ? { daysOfWeek: schedule.daysOfWeek }
+            : {}),
           endDate: form.recurrence.endDate,
         },
       },
@@ -98,7 +104,6 @@ export function validateAlarmInput(
   form: AlarmInput,
   { requireFuture = false }: { requireFuture?: boolean } = {},
 ) {
-  if (!form.title.trim()) return "Informe um título para o lembrete.";
   if (
     form.reminderType === "pay_bill" &&
     (form.amount === undefined ||
