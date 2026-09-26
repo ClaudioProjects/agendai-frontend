@@ -152,12 +152,20 @@ export function AlarmFormPage() {
         </div>
       </div>
       {error && (
-        <p
-          className="mx-[22px] mt-2.5 rounded-[10px] bg-[color-mix(in_srgb,var(--danger)_11%,transparent)] px-3 py-2.5 text-xs text-danger min-[700px]:mx-[30px]"
+        <div
+          className="fixed bottom-[max(20px,env(safe-area-inset-bottom))] left-1/2 z-20 flex w-[calc(100%-44px)] max-w-[440px] -translate-x-1/2 items-center gap-3 rounded-[14px] border border-[color-mix(in_srgb,var(--danger)_45%,var(--border))] bg-surface px-3 py-2.5 text-xs text-danger shadow-soft"
           role="alert"
         >
-          {error}
-        </p>
+          <p className="m-0 min-w-0 flex-1">{error}</p>
+          <button
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-danger hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)]"
+            type="button"
+            onClick={() => setError("")}
+            aria-label="Fechar aviso"
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
       )}
     </form>
   );
