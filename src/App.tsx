@@ -35,6 +35,7 @@ type AlarmContextValue = {
   initialLoading: boolean;
   error: string | null;
   saveAlarm: (input: AlarmInput, id?: string) => Promise<Alarm>;
+  saveAlarmBatch: (inputs: AlarmInput[], id?: string) => Promise<Alarm[]>;
   removeAlarm: (id: string) => Promise<void>;
   updateAlarm: (id: string, input: Partial<AlarmInput>) => Promise<void>;
   toggleComplete: (id: string, occurrence?: string) => Promise<void>;
@@ -177,27 +178,39 @@ function AppProviders({ children }: PropsWithChildren) {
       }
     };
 
+    const saveAlarmBatch = async (inputs: AlarmInput[], id?: string) => {
+      if (!inputs.length) return [];
+      const results = await storage.saveBatch(
+        inputs.map((input, index) => ({
+          input,
+          ...(index === 0 && id ? { id } : {}),
+        })),
+      );
+      try {
+        for (const result of results) {
+          await notificationScheduler.cancel(result.id);
+          await notificationScheduler.schedule(result);
+        }
+      } catch (notificationError) {
+        const message = `Os lembretes foram salvos, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
+        setError(message);
+        throw new Error(message, { cause: notificationError });
+      } finally {
+        await refresh();
+      }
+      return results;
+    };
+
     return {
       alarms,
       loading,
       initialLoading,
       error,
       refresh,
+      saveAlarmBatch,
       async saveAlarm(input, id) {
-        const result = id
-          ? await storage.update(id, input)
-          : await storage.create(input);
+        const [result] = await saveAlarmBatch([input], id);
         if (!result) throw new Error("Lembrete não encontrado.");
-        try {
-          await notificationScheduler.cancel(result.id);
-          await notificationScheduler.schedule(result);
-        } catch (notificationError) {
-          const message = `O lembrete foi salvo, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
-          setError(message);
-          throw new Error(message, { cause: notificationError });
-        } finally {
-          await refresh();
-        }
         return result;
       },
       async removeAlarm(id) {

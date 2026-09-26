@@ -118,3 +118,29 @@
     outline-offset: 2px;
   }
 }
+
+@keyframes alarm-card-flash {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--border) 72%, transparent);
+    box-shadow: var(--card-shadow);
+  }
+  25%,
+  75% {
+    border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent),
+      var(--card-shadow);
+  }
+}
+
+.alarm-card--flash {
+  animation: alarm-card-flash 1.2s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alarm-card--flash {
+    animation: none;
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  }
+}

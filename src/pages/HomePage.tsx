@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 import { CalendarStrip } from "../components/home/CalendarStrip";
 import { AlarmCard } from "../components/home/AlarmCard";
 import { Icon } from "../components/Icon";
@@ -11,9 +11,27 @@ function capitalize(value: string) {
 export function HomePage() {
   const { alarms, toggleComplete, loading } = useAlarms(),
     navigate = useNavigate(),
+    location = useLocation(),
     today = localDateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today),
-    [monthOffset, setMonthOffset] = useState(0);
+    [monthOffset, setMonthOffset] = useState(0),
+    [flashAlarmIds, setFlashAlarmIds] = useState<string[]>([]);
+  useEffect(() => {
+    const state = location.state as { flashAlarmIds?: unknown } | null;
+    const ids = Array.isArray(state?.flashAlarmIds)
+      ? state.flashAlarmIds.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+    const startTimer = window.setTimeout(() => setFlashAlarmIds(ids));
+    const clearTimer = ids.length
+      ? window.setTimeout(() => setFlashAlarmIds([]), 2_450)
+      : undefined;
+    return () => {
+      window.clearTimeout(startTimer);
+      if (clearTimer) window.clearTimeout(clearTimer);
+    };
+  }, [location.key, location.state]);
   const visible = useMemo(
     () =>
       alarms
@@ -82,6 +100,7 @@ export function HomePage() {
                   alarm.recurrence.type === "none" ? undefined : selectedDate,
                 )
               }
+              flash={flashAlarmIds.includes(alarm.id)}
             />
           ))}
         </div>

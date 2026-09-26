@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
+import { AlarmScheduleFields } from "../components/alarms/AlarmScheduleFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
 import type { Alarm, AlarmInput } from "../libs/alarm";
-import { blankAlarm, validateAlarmInput } from "../libs/alarm-form";
+import {
+  blankAlarm,
+  scheduleFromAlarmInput,
+  scheduledAlarmInputs,
+  validateAlarmInputs,
+  type AlarmSchedule,
+} from "../libs/alarm-form";
 
 function toAlarmInput(alarm: Alarm): AlarmInput {
   return {
@@ -26,10 +33,13 @@ function toAlarmInput(alarm: Alarm): AlarmInput {
 export function AlarmFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { alarms, loading, saveAlarm } = useAlarms();
+  const { alarms, loading, saveAlarmBatch } = useAlarms();
   const editing = alarms.find((alarm) => alarm.id === id);
   const [form, setForm] = useState<AlarmInput>(
     editing ? toAlarmInput(editing) : blankAlarm(),
+  );
+  const [schedule, setSchedule] = useState<AlarmSchedule>(() =>
+    scheduleFromAlarmInput(editing ? toAlarmInput(editing) : blankAlarm()),
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -39,15 +49,32 @@ export function AlarmFormPage() {
   }, [id, loading, editing, navigate]);
 
   useEffect(() => {
-    if (editing)
+    if (editing) {
       // The form is initialized before async storage finishes loading.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(toAlarmInput(editing));
+      setSchedule(scheduleFromAlarmInput(toAlarmInput(editing)));
+    }
   }, [editing]);
+
+  const updateSchedule = (nextSchedule: AlarmSchedule) => {
+    setSchedule(nextSchedule);
+    const firstDate = scheduledAlarmInputs(form, nextSchedule)[0]?.date;
+    setForm((current) => ({
+      ...current,
+      ...(firstDate ? { date: firstDate } : {}),
+      recurrence: {
+        ...current.recurrence,
+        type: nextSchedule.recurring ? "weekly" : "none",
+        daysOfWeek: nextSchedule.recurring ? nextSchedule.daysOfWeek : [],
+      },
+    }));
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const validationError = validateAlarmInput(form, {
+    const inputs = scheduledAlarmInputs(form, schedule);
+    const validationError = validateAlarmInputs(inputs, {
       requireFuture: !editing,
     });
     if (validationError) {
@@ -57,8 +84,10 @@ export function AlarmFormPage() {
     setError("");
     setSaving(true);
     try {
-      const result = await saveAlarm(form, id);
-      navigate(`/alarms/${result.id}`);
+      const results = await saveAlarmBatch(inputs, id);
+      navigate("/agenda", {
+        state: { flashAlarmIds: results.map(({ id }) => id) },
+      });
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -102,12 +131,22 @@ export function AlarmFormPage() {
         </button>
       </header>
       <div className="mx-[22px] mt-5 min-[700px]:mx-[30px]">
-        <AlarmFormFields
-          form={form}
-          onChange={setForm}
-          autoFocus
+        <AlarmScheduleFields
+          schedule={schedule}
+          time={form.time}
+          onScheduleChange={updateSchedule}
+          onTimeChange={(time) => setForm((current) => ({ ...current, time }))}
           allowPastDates={Boolean(editing)}
         />
+        <div className="mt-[18px]">
+          <AlarmFormFields
+            form={form}
+            onChange={setForm}
+            autoFocus
+            allowPastDates={Boolean(editing)}
+            showSchedulingFields={false}
+          />
+        </div>
       </div>
       {error && (
         <p

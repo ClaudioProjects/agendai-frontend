@@ -1,6 +1,6 @@
 import { CapacitorSQLite } from "@capacitor-community/sqlite";
-import { alarmSchema, parseStoredAlarm } from "../alarm";
-import type { AlarmStorage } from "./index";
+import { alarmSchema, parseStoredAlarm, type AlarmInput } from "../alarm";
+import type { AlarmBatchEntry, AlarmStorage } from "./index";
 
 const database = "agendai";
 let setup: Promise<void> | undefined;
@@ -50,6 +50,44 @@ async function rows() {
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 }
 
+async function saveSqliteBatch(entries: AlarmBatchEntry[]) {
+  if (!entries.length) return [];
+  const existing = new Map((await rows()).map((alarm) => [alarm.id, alarm]));
+  const now = new Date().toISOString();
+  const saved = entries.map(({ input, id }) => {
+    if (id) {
+      const alarm = existing.get(id);
+      if (!alarm) throw new Error("Lembrete não encontrado.");
+      return alarmSchema.parse({ ...alarm, ...input, id, updatedAt: now });
+    }
+    return alarmSchema.parse({
+      ...input,
+      id: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  await ensureDatabase();
+  await CapacitorSQLite.executeSet({
+    database,
+    transaction: true,
+    set: saved.map((alarm, index) => {
+      const isUpdate = Boolean(entries[index].id);
+      return isUpdate
+        ? {
+            statement: "UPDATE alarms SET payload = ? WHERE id = ?;",
+            values: [JSON.stringify(alarm), alarm.id],
+          }
+        : {
+            statement: "INSERT INTO alarms (id, payload) VALUES (?, ?);",
+            values: [alarm.id, JSON.stringify(alarm)],
+          };
+    }),
+  });
+  return saved;
+}
+
 export const sqliteAlarmStorage: AlarmStorage = {
   async list() {
     return rows();
@@ -58,36 +96,26 @@ export const sqliteAlarmStorage: AlarmStorage = {
     return (await rows()).find((alarm) => alarm.id === id);
   },
   async create(input) {
-    const now = new Date().toISOString();
-    const alarm = alarmSchema.parse({
-      ...input,
-      id: crypto.randomUUID(),
-      createdAt: now,
-      updatedAt: now,
-    });
-    await ensureDatabase();
-    await CapacitorSQLite.run({
-      database,
-      statement: "INSERT INTO alarms (id, payload) VALUES (?, ?);",
-      values: [alarm.id, JSON.stringify(alarm)],
-    });
+    const [alarm] = await saveSqliteBatch([{ input }]);
     return alarm;
   },
   async update(id, input) {
-    const existing = await this.findById(id);
-    if (!existing) return undefined;
-    const alarm = alarmSchema.parse({
-      ...existing,
-      ...input,
-      updatedAt: new Date().toISOString(),
-    });
-    await ensureDatabase();
-    await CapacitorSQLite.run({
-      database,
-      statement: "UPDATE alarms SET payload = ? WHERE id = ?;",
-      values: [JSON.stringify(alarm), id],
-    });
-    return alarm;
+    try {
+      const [alarm] = await saveSqliteBatch([
+        { id, input: input as AlarmInput },
+      ]);
+      return alarm;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "Lembrete não encontrado."
+      )
+        return undefined;
+      throw error;
+    }
+  },
+  async saveBatch(entries) {
+    return saveSqliteBatch(entries);
   },
   async delete(id) {
     await ensureDatabase();

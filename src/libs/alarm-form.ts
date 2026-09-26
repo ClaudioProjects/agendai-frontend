@@ -1,5 +1,82 @@
 import { dateFromParts, localDateKey, type AlarmInput } from "./alarm";
 
+export type AlarmSchedule = {
+  weekAnchor: string;
+  daysOfWeek: number[];
+  recurring: boolean;
+};
+
+function dateAtNoon(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`);
+}
+
+function dateKeyFromDate(date: Date) {
+  return localDateKey(date);
+}
+
+export function weekdayForDate(dateKey: string) {
+  return dateAtNoon(dateKey).getDay();
+}
+
+export function weekDatesForDays(weekAnchor: string, daysOfWeek: number[]) {
+  const start = dateAtNoon(weekAnchor);
+  start.setDate(start.getDate() - start.getDay());
+
+  return [...new Set(daysOfWeek)]
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .sort((first, second) => first - second)
+    .map((day) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + day);
+      return dateKeyFromDate(date);
+    });
+}
+
+export function scheduleFromAlarmInput(input: AlarmInput): AlarmSchedule {
+  const recurring = input.recurrence.type !== "none";
+  const daysOfWeek =
+    input.recurrence.type === "weekly" && input.recurrence.daysOfWeek?.length
+      ? input.recurrence.daysOfWeek
+      : [weekdayForDate(input.date)];
+
+  return {
+    weekAnchor: input.date,
+    daysOfWeek: [...new Set(daysOfWeek)].sort(
+      (first, second) => first - second,
+    ),
+    recurring,
+  };
+}
+
+export function scheduledAlarmInputs(
+  form: AlarmInput,
+  schedule: AlarmSchedule,
+) {
+  const dates = weekDatesForDays(schedule.weekAnchor, schedule.daysOfWeek);
+  if (!dates.length) return [];
+
+  if (schedule.recurring) {
+    return [
+      {
+        ...form,
+        date: dates[0],
+        recurrence: {
+          type: "weekly" as const,
+          daysOfWeek: schedule.daysOfWeek,
+          endDate: form.recurrence.endDate,
+        },
+      },
+    ];
+  }
+
+  return dates.map((date, index) => ({
+    ...form,
+    date,
+    recurrence: { type: "none" as const, daysOfWeek: [] },
+    ...(index > 0 ? { status: "pending" as const, exceptions: {} } : {}),
+  }));
+}
+
 export function blankAlarm(): AlarmInput {
   return {
     title: "",
@@ -29,6 +106,8 @@ export function validateAlarmInput(
       form.amount <= 0)
   )
     return "Informe um valor válido para a conta.";
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.time))
+    return "Escolha um horário válido.";
   if (
     requireFuture &&
     dateFromParts(form.date, form.time).getTime() < Date.now()
@@ -38,5 +117,17 @@ export function validateAlarmInput(
     return "Escolha ao menos um dia da semana para a recorrência semanal.";
   if (form.recurrence.endDate && form.recurrence.endDate < form.date)
     return "A data de término não pode ser anterior à data inicial.";
+  return null;
+}
+
+export function validateAlarmInputs(
+  forms: AlarmInput[],
+  options: { requireFuture?: boolean } = {},
+) {
+  if (!forms.length) return "Escolha ao menos um dia para o lembrete.";
+  for (const form of forms) {
+    const error = validateAlarmInput(form, options);
+    if (error) return error;
+  }
   return null;
 }

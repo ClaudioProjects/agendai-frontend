@@ -22,11 +22,13 @@ export function AlarmFormFields({
   onChange,
   autoFocus = false,
   allowPastDates = false,
+  showSchedulingFields = true,
 }: {
   form: AlarmInput;
   onChange: (next: AlarmInput) => void;
   autoFocus?: boolean;
   allowPastDates?: boolean;
+  showSchedulingFields?: boolean;
 }) {
   const set = <K extends keyof AlarmInput>(key: K, value: AlarmInput[K]) =>
     onChange({ ...form, [key]: value });
@@ -93,27 +95,29 @@ export function AlarmFormFields({
           rows={3}
         />
       </label>
-      <div className="grid grid-cols-2 gap-[11px]">
-        <label className={label}>
-          Data
-          <input
-            className={input}
-            type="date"
-            value={form.date}
-            min={allowPastDates ? undefined : localDateKey(new Date())}
-            onChange={(event) => set("date", event.target.value)}
-          />
-        </label>
-        <label className={label}>
-          Horário
-          <input
-            className={input}
-            type="time"
-            value={form.time}
-            onChange={(event) => set("time", event.target.value)}
-          />
-        </label>
-      </div>
+      {showSchedulingFields && (
+        <div className="grid grid-cols-2 gap-[11px]">
+          <label className={label}>
+            Data
+            <input
+              className={input}
+              type="date"
+              value={form.date}
+              min={allowPastDates ? undefined : localDateKey(new Date())}
+              onChange={(event) => set("date", event.target.value)}
+            />
+          </label>
+          <label className={label}>
+            Horário
+            <input
+              className={input}
+              type="time"
+              value={form.time}
+              onChange={(event) => set("time", event.target.value)}
+            />
+          </label>
+        </div>
+      )}
       <label className={label}>
         Categoria
         <select
@@ -130,62 +134,66 @@ export function AlarmFormFields({
           ))}
         </select>
       </label>
-      <div className={label}>Repetir</div>
-      <div className="-mt-2 grid grid-cols-5 gap-1">
-        {RECURRENCE_TYPES.map((type) => (
-          <button
-            type="button"
-            key={type}
-            className={cn(
-              choice,
-              form.recurrence.type === type &&
-                "border-primary bg-primary text-primary-foreground",
-            )}
-            onClick={() =>
-              set("recurrence", {
-                ...form.recurrence,
-                type: type as RecurrenceType,
-              })
-            }
-          >
-            {type === "none"
-              ? "Nunca"
-              : type === "daily"
-                ? "Diário"
-                : type === "weekly"
-                  ? "Semanal"
-                  : type === "monthly"
-                    ? "Mensal"
-                    : "Anual"}
-          </button>
-        ))}
-      </div>
-      {form.recurrence.type === "weekly" && (
-        <div className="-mt-[7px] grid grid-cols-7 gap-[7px]">
-          {weekDays.map((day, index) => (
-            <button
-              type="button"
-              key={`${day}-${index}`}
-              className={cn(
-                choice,
-                form.recurrence.daysOfWeek?.includes(index) &&
-                  "border-primary bg-primary text-primary-foreground",
-              )}
-              onClick={() =>
-                set("recurrence", {
-                  ...form.recurrence,
-                  daysOfWeek: form.recurrence.daysOfWeek?.includes(index)
-                    ? form.recurrence.daysOfWeek.filter(
-                        (item) => item !== index,
-                      )
-                    : [...(form.recurrence.daysOfWeek ?? []), index],
-                })
-              }
-            >
-              {day}
-            </button>
-          ))}
-        </div>
+      {showSchedulingFields && (
+        <>
+          <div className={label}>Repetir</div>
+          <div className="-mt-2 grid grid-cols-5 gap-1">
+            {RECURRENCE_TYPES.map((type) => (
+              <button
+                type="button"
+                key={type}
+                className={cn(
+                  choice,
+                  form.recurrence.type === type &&
+                    "border-primary bg-primary text-primary-foreground",
+                )}
+                onClick={() =>
+                  set("recurrence", {
+                    ...form.recurrence,
+                    type: type as RecurrenceType,
+                  })
+                }
+              >
+                {type === "none"
+                  ? "Nunca"
+                  : type === "daily"
+                    ? "Diário"
+                    : type === "weekly"
+                      ? "Semanal"
+                      : type === "monthly"
+                        ? "Mensal"
+                        : "Anual"}
+              </button>
+            ))}
+          </div>
+          {form.recurrence.type === "weekly" && (
+            <div className="-mt-[7px] grid grid-cols-7 gap-[7px]">
+              {weekDays.map((day, index) => (
+                <button
+                  type="button"
+                  key={`${day}-${index}`}
+                  className={cn(
+                    choice,
+                    form.recurrence.daysOfWeek?.includes(index) &&
+                      "border-primary bg-primary text-primary-foreground",
+                  )}
+                  onClick={() =>
+                    set("recurrence", {
+                      ...form.recurrence,
+                      daysOfWeek: form.recurrence.daysOfWeek?.includes(index)
+                        ? form.recurrence.daysOfWeek.filter(
+                            (item) => item !== index,
+                          )
+                        : [...(form.recurrence.daysOfWeek ?? []), index],
+                    })
+                  }
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {form.recurrence.type !== "none" && (
         <label className={label}>

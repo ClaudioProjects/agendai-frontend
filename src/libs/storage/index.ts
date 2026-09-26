@@ -2,11 +2,15 @@ import { Capacitor } from "@capacitor/core";
 import type { Alarm, AlarmInput } from "../alarm";
 import { alarmSchema, parseStoredAlarm } from "../alarm";
 import { sqliteAlarmStorage } from "./sqlite";
+
+export type AlarmBatchEntry = { input: AlarmInput; id?: string };
+
 export interface AlarmStorage {
   list(): Promise<Alarm[]>;
   findById(id: string): Promise<Alarm | undefined>;
   create(input: AlarmInput): Promise<Alarm>;
   update(id: string, input: Partial<AlarmInput>): Promise<Alarm | undefined>;
+  saveBatch(entries: AlarmBatchEntry[]): Promise<Alarm[]>;
   delete(id: string): Promise<void>;
 }
 const storageKey = "agendai:alarms:v1";
@@ -28,6 +32,37 @@ function readBrowserAlarms() {
 function writeBrowserAlarms(alarms: Alarm[]) {
   window.localStorage.setItem(storageKey, JSON.stringify(alarms));
 }
+
+function saveBrowserBatch(entries: AlarmBatchEntry[]) {
+  const alarms = readBrowserAlarms();
+  const byId = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+  const now = new Date().toISOString();
+  const saved = entries.map(({ input, id }) => {
+    if (id) {
+      const existing = byId.get(id);
+      if (!existing) throw new Error("Lembrete não encontrado.");
+      const alarm = alarmSchema.parse({
+        ...existing,
+        ...input,
+        id,
+        updatedAt: now,
+      });
+      byId.set(id, alarm);
+      return alarm;
+    }
+    const alarm = alarmSchema.parse({
+      ...input,
+      id: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+    });
+    byId.set(alarm.id, alarm);
+    return alarm;
+  });
+  writeBrowserAlarms([...byId.values()]);
+  return saved;
+}
+
 const localStorageAdapter: AlarmStorage = {
   async list() {
     return readBrowserAlarms().sort((a, b) =>
@@ -38,28 +73,25 @@ const localStorageAdapter: AlarmStorage = {
     return readBrowserAlarms().find((alarm) => alarm.id === id);
   },
   async create(input) {
-    const now = new Date().toISOString();
-    const alarm = alarmSchema.parse({
-      ...input,
-      id: crypto.randomUUID(),
-      createdAt: now,
-      updatedAt: now,
-    });
-    writeBrowserAlarms([...readBrowserAlarms(), alarm]);
+    const [alarm] = saveBrowserBatch([{ input }]);
     return alarm;
   },
   async update(id, input) {
-    const alarms = readBrowserAlarms();
-    const existing = alarms.find((alarm) => alarm.id === id);
-    if (!existing) return undefined;
-    const alarm = alarmSchema.parse({
-      ...existing,
-      ...input,
-      id,
-      updatedAt: new Date().toISOString(),
-    });
-    writeBrowserAlarms(alarms.map((item) => (item.id === id ? alarm : item)));
-    return alarm;
+    try {
+      const [alarm] = saveBrowserBatch([{ id, input: input as AlarmInput }]);
+      return alarm;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "Lembrete não encontrado."
+      )
+        return undefined;
+      throw error;
+    }
+  },
+  async saveBatch(entries) {
+    if (!entries.length) return [];
+    return saveBrowserBatch(entries);
   },
   async delete(id) {
     writeBrowserAlarms(readBrowserAlarms().filter((alarm) => alarm.id !== id));

@@ -9,10 +9,12 @@ export function AlarmCard({
   alarm,
   occurrenceDate,
   onComplete,
+  flash = false,
 }: {
   alarm: Alarm;
   occurrenceDate?: string;
   onComplete: () => void;
+  flash?: boolean;
 }) {
   const navigate = useNavigate();
   const meta = eventMeta[alarm.eventType] ?? eventMeta.DEFAULT;
@@ -28,6 +30,7 @@ export function AlarmCard({
       className={cn(
         "grid min-h-[76px] cursor-pointer grid-cols-[42px_minmax(0,1fr)_auto] items-start gap-2.5 rounded-[13px] border border-[color-mix(in_srgb,var(--border)_72%,transparent)] bg-surface p-2.5 shadow-card transition hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         completed && "opacity-[0.58]",
+        flash && "alarm-card--flash",
       )}
       style={
         {
