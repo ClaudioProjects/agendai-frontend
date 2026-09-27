@@ -155,7 +155,6 @@ export function AlarmFormPage() {
           <AlarmFormFields
             form={form}
             onChange={setForm}
-            autoFocus
             allowPastDates={Boolean(editing)}
             showSchedulingFields={false}
           />

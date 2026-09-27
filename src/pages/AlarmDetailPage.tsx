@@ -263,7 +263,7 @@ export function AlarmDetailPage() {
                 )
               }
               aria-label={
-                completed ? "Marcar como pendente" : "Concluir lembrete"
+                completed ? "Marcar como pendente" : "Concluir alarme"
               }
             >
               <Icon name="check" size={18} />
