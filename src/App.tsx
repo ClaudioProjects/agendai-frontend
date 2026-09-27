@@ -144,6 +144,7 @@ function AppProviders({ children }: PropsWithChildren) {
         }
 
         await notificationScheduler.requestExactAlarmPermission();
+        await notificationScheduler.requestFullScreenIntentPermission();
         if (permission !== "granted") return;
 
         // The first reconciliation can run before the native prompt is answered.

@@ -84,9 +84,6 @@ const nativeScheduler: NotificationScheduler = {
         throw new Error("Permita as notificações para agendar este lembrete.");
       }
     }
-    if (!(await alarmScheduler.checkFullScreenIntentPermission())) {
-      await alarmScheduler.requestFullScreenIntentPermission();
-    }
     await alarmScheduler.upsert(alarm);
   },
   async cancel(alarmId) {

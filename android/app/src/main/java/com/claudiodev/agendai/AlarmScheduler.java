@@ -116,6 +116,7 @@ final class AlarmScheduler {
             if (!matches(alarm, revision, occurrenceDate)) return;
             notificationManager.cancel(requestCodeFor(alarmId, false));
             showNotification(alarm, occurrenceDate, revision, true);
+            openAlarmActivity(alarmId, occurrenceDate, revision);
             scheduleNext(alarmId);
         } catch (JSONException ignored) {
             // The native state is retried during the next reconciliation from the app.
@@ -323,6 +324,24 @@ final class AlarmScheduler {
             .addAction(0, "Confirmar", confirmPendingIntent);
         if (alarmIsDue) notification.setFullScreenIntent(openPendingIntent, true);
         notificationManager.notify(requestCode, notification.build());
+    }
+
+    private void openAlarmActivity(String alarmId, String occurrenceDate, int revision) {
+        Intent intent = new Intent(context, MainActivity.class)
+            .setAction(ACTION_OPEN)
+            .putExtra("alarmId", alarmId)
+            .putExtra("occurrenceDate", occurrenceDate)
+            .putExtra("scheduleRevision", revision)
+            .addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK |
+                Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            );
+        try {
+            context.startActivity(intent);
+        } catch (RuntimeException ignored) {
+            // The full-screen notification remains available on devices that block a background launch.
+        }
     }
 
     private void ensureChannel() {
