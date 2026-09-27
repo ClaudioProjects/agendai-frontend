@@ -160,18 +160,12 @@ function AppProviders({ children }: PropsWithChildren) {
   useEffect(() => {
     const reconcileOnResume = () => {
       if (document.visibilityState !== "visible") return;
-      void notificationScheduler
-        .reconcile(alarms)
-        .catch((notificationError) => {
-          setError(
-            `Não foi possível atualizar as notificações: ${errorMessage(notificationError)}`,
-          );
-        });
+      void refresh(true);
     };
     document.addEventListener("visibilitychange", reconcileOnResume);
     return () =>
       document.removeEventListener("visibilitychange", reconcileOnResume);
-  }, [alarms]);
+  }, [refresh]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
