@@ -4,7 +4,11 @@ import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { AlarmScheduleFields } from "../components/alarms/AlarmScheduleFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
-import type { Alarm, AlarmInput } from "../libs/alarm";
+import {
+  nearestAlarmOccurrence,
+  type Alarm,
+  type AlarmInput,
+} from "../libs/alarm";
 import {
   blankAlarm,
   scheduleFromAlarmInput,
@@ -89,8 +93,13 @@ export function AlarmFormPage() {
     setSaving(true);
     try {
       const results = await saveAlarmBatch(inputs, id);
+      const nextAlarm = nearestAlarmOccurrence(results);
       navigate("/agenda", {
-        state: { flashAlarmIds: results.map(({ id }) => id) },
+        state: {
+          flashAlarmIds: results.map(({ id }) => id),
+          nextAlarmAt: nextAlarm?.toISOString(),
+          savedAlarmSeries: true,
+        },
       });
     } catch (saveError) {
       setError(

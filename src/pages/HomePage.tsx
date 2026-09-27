@@ -3,7 +3,12 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { CalendarStrip } from "../components/home/CalendarStrip";
 import { AlarmCard } from "../components/home/AlarmCard";
 import { Icon } from "../components/Icon";
-import { formatDate, isAlarmForDate, localDateKey } from "../libs/alarm";
+import {
+  formatAlarmCountdown,
+  formatDate,
+  isAlarmForDate,
+  localDateKey,
+} from "../libs/alarm";
 import { useAlarms } from "../App";
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -15,21 +20,42 @@ export function HomePage() {
     today = localDateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today),
     [monthOffset, setMonthOffset] = useState(0),
-    [flashAlarmIds, setFlashAlarmIds] = useState<string[]>([]);
+    [flashAlarmIds, setFlashAlarmIds] = useState<string[]>([]),
+    [saveToast, setSaveToast] = useState<string | null>(null);
   useEffect(() => {
-    const state = location.state as { flashAlarmIds?: unknown } | null;
+    const state = location.state as {
+      flashAlarmIds?: unknown;
+      nextAlarmAt?: unknown;
+      savedAlarmSeries?: unknown;
+    } | null;
     const ids = Array.isArray(state?.flashAlarmIds)
       ? state.flashAlarmIds.filter(
           (value): value is string => typeof value === "string",
         )
       : [];
+    const nextAlarm =
+      typeof state?.nextAlarmAt === "string"
+        ? new Date(state.nextAlarmAt)
+        : null;
+    const toast =
+      state?.savedAlarmSeries === true
+        ? nextAlarm && Number.isFinite(nextAlarm.getTime())
+          ? `Próximo alarme em ${formatAlarmCountdown(nextAlarm)}.`
+          : "Esta série não tem próximos alarmes."
+        : null;
     const startTimer = window.setTimeout(() => setFlashAlarmIds(ids));
+    const toastTimer = window.setTimeout(() => setSaveToast(toast));
     const clearTimer = ids.length
       ? window.setTimeout(() => setFlashAlarmIds([]), 2_450)
       : undefined;
+    const dismissToastTimer = toast
+      ? window.setTimeout(() => setSaveToast(null), 6_000)
+      : undefined;
     return () => {
       window.clearTimeout(startTimer);
+      window.clearTimeout(toastTimer);
       if (clearTimer) window.clearTimeout(clearTimer);
+      if (dismissToastTimer) window.clearTimeout(dismissToastTimer);
     };
   }, [location.key, location.state]);
   const visible = useMemo(
@@ -128,6 +154,26 @@ export function HomePage() {
       >
         <Icon name="plus" size={24} />
       </button>
+      {saveToast && (
+        <div
+          className="fixed right-[22px] bottom-[calc(146px+env(safe-area-inset-bottom))] left-[22px] z-10 mx-auto flex max-w-[440px] items-center gap-3 rounded-[14px] border border-[color-mix(in_srgb,var(--success)_42%,var(--border))] bg-surface px-3 py-2.5 text-xs text-foreground shadow-soft min-[700px]:right-[30px] min-[700px]:left-[30px]"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-success">
+            <Icon name="check" size={16} />
+          </span>
+          <p className="m-0 min-w-0 flex-1">{saveToast}</p>
+          <button
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-muted hover:bg-muted-surface hover:text-foreground"
+            type="button"
+            onClick={() => setSaveToast(null)}
+            aria-label="Fechar aviso"
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

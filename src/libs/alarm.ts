@@ -134,6 +134,154 @@ function normalizeTimeZone(value: unknown) {
 export function dateFromParts(date: string, time: string) {
   return new Date(`${date}T${time}:00`);
 }
+
+type CalendarDateTime = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+function calendarParts(date: Date, timeZone: string): CalendarDateTime {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+    const value = (type: "year" | "month" | "day" | "hour" | "minute") =>
+      Number(parts.find((part) => part.type === type)?.value);
+
+    return {
+      year: value("year"),
+      month: value("month"),
+      day: value("day"),
+      hour: value("hour"),
+      minute: value("minute"),
+    };
+  } catch {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+    };
+  }
+}
+
+function dateKeyFromCalendar({ year, month, day }: CalendarDateTime) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function addCalendarDays(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function zonedDateTime(dateKey: string, time: string, timeZone: string) {
+  const values = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(dateKey);
+  const clock = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!values || !clock) return null;
+
+  const desired: CalendarDateTime = {
+    year: Number(values[1]),
+    month: Number(values[2]),
+    day: Number(values[3]),
+    hour: Number(clock[1]),
+    minute: Number(clock[2]),
+  };
+  const desiredUtc = Date.UTC(
+    desired.year,
+    desired.month - 1,
+    desired.day,
+    desired.hour,
+    desired.minute,
+  );
+  const initial = new Date(desiredUtc);
+  const actual = calendarParts(initial, timeZone);
+  const actualUtc = Date.UTC(
+    actual.year,
+    actual.month - 1,
+    actual.day,
+    actual.hour,
+    actual.minute,
+  );
+
+  // This mirrors ZonedDateTime's usual behavior: it selects the earlier
+  // offset in an ambiguous hour and moves a nonexistent DST time forward.
+  return new Date(desiredUtc + (desiredUtc - actualUtc));
+}
+
+/** Returns the next actual alarm time for one active series. */
+export function nextAlarmOccurrence(alarm: Alarm, now = new Date()) {
+  if (alarm.status !== "pending") return null;
+  const occurrenceAt = (dateKey: string) => {
+    if (alarm.exceptions[dateKey]) return null;
+    const value = zonedDateTime(dateKey, alarm.time, alarm.timeZone);
+    return value && value.getTime() > now.getTime() ? value : null;
+  };
+
+  if (alarm.recurrence.type === "none") return occurrenceAt(alarm.date);
+
+  const today = dateKeyFromCalendar(calendarParts(now, alarm.timeZone));
+  const firstDate = alarm.date > today ? alarm.date : today;
+  const endDate = alarm.recurrence.endDate;
+  for (let offset = 0; offset <= 366 * 8; offset += 1) {
+    const dateKey = addCalendarDays(firstDate, offset);
+    if (endDate && dateKey > endDate) return null;
+    if (!isAlarmOccurrence(alarm, dateKey)) continue;
+    const occurrence = occurrenceAt(dateKey);
+    if (occurrence) return occurrence;
+  }
+  return null;
+}
+
+/** Returns the closest upcoming alarm across all items created in one save. */
+export function nearestAlarmOccurrence(alarms: Alarm[], now = new Date()) {
+  return alarms.reduce<Date | null>((nearest, alarm) => {
+    const occurrence = nextAlarmOccurrence(alarm, now);
+    if (!occurrence) return nearest;
+    return !nearest || occurrence.getTime() < nearest.getTime()
+      ? occurrence
+      : nearest;
+  }, null);
+}
+
+function joinDuration(parts: string[]) {
+  if (parts.length < 2) return parts[0] ?? "0 minutos";
+  if (parts.length === 2) return `${parts[0]} e ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")} e ${parts.at(-1)}`;
+}
+
+/** Formats a future interval for the save confirmation toast. */
+export function formatAlarmCountdown(target: Date, now = new Date()) {
+  const totalMinutes = Math.max(
+    0,
+    Math.ceil((target.getTime() - now.getTime()) / 60_000),
+  );
+  const includesDays = totalMinutes > 24 * 60;
+  const days = includesDays ? Math.floor(totalMinutes / (24 * 60)) : 0;
+  const remainingMinutes = includesDays
+    ? totalMinutes - days * 24 * 60
+    : totalMinutes;
+  const hours = Math.floor(remainingMinutes / 60);
+  const minutes = remainingMinutes % 60;
+  const parts = [
+    ...(days ? [`${days} ${days === 1 ? "dia" : "dias"}`] : []),
+    ...(hours ? [`${hours} ${hours === 1 ? "hora" : "horas"}`] : []),
+    ...(minutes ? [`${minutes} ${minutes === 1 ? "minuto" : "minutos"}`] : []),
+  ];
+
+  return joinDuration(parts);
+}
+
 export function isAlarmOccurrence(alarm: Alarm, dateKey: string) {
   if (alarm.recurrence.type === "none") return alarm.date === dateKey;
   if (

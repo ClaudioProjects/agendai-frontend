@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   alarmSchema,
   completionForOccurrence,
+  formatAlarmCountdown,
   isAlarmForDate,
+  nearestAlarmOccurrence,
+  nextAlarmOccurrence,
   parseStoredAlarm,
   type Alarm,
 } from "../src/libs/alarm";
@@ -103,5 +106,45 @@ describe("isAlarmForDate", () => {
         "2026-09-07",
       ),
     ).toEqual({ status: "completed" });
+  });
+
+  test("encontra a próxima ocorrência de uma série semanal", () => {
+    const next = nextAlarmOccurrence(
+      alarm({ recurrence: { type: "weekly", daysOfWeek: [1, 3, 5] } }),
+      new Date("2026-09-09T14:00:00.000Z"),
+    );
+
+    expect(next?.toISOString()).toBe("2026-09-11T13:00:00.000Z");
+  });
+
+  test("escolhe a ocorrência mais próxima entre os alarmes salvos juntos", () => {
+    const next = nearestAlarmOccurrence(
+      [
+        alarm({
+          id: "first",
+          date: "2026-09-12",
+          recurrence: { type: "none" },
+        }),
+        alarm({
+          id: "second",
+          date: "2026-09-10",
+          recurrence: { type: "none" },
+        }),
+      ],
+      new Date("2026-09-09T12:00:00.000Z"),
+    );
+
+    expect(next?.toISOString()).toBe("2026-09-10T13:00:00.000Z");
+  });
+
+  test("omite dias do contador quando o intervalo não passa de um dia", () => {
+    const now = new Date("2026-09-09T10:00:00.000Z");
+
+    expect(
+      formatAlarmCountdown(new Date("2026-09-10T10:00:00.000Z"), now),
+    ).toBe("24 horas");
+    expect(
+      formatAlarmCountdown(new Date("2026-09-11T13:04:00.000Z"), now),
+    ).toBe("2 dias, 3 horas e 4 minutos");
   });
 });
