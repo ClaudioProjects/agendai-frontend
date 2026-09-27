@@ -1,6 +1,8 @@
 import {
+  ALARM_NOTIFICATION_MINUTES,
   dateFromParts,
   localDateKey,
+  localTimeZone,
   type AlarmInput,
   type RecurrenceType,
 } from "./alarm";
@@ -64,6 +66,7 @@ export function scheduledAlarmInputs(
       {
         ...form,
         date: dates[0],
+        notifications: [ALARM_NOTIFICATION_MINUTES],
         recurrence: {
           type: schedule.recurrenceType,
           ...(schedule.recurrenceType === "weekly"
@@ -78,6 +81,7 @@ export function scheduledAlarmInputs(
   return dates.map((date, index) => ({
     ...form,
     date,
+    notifications: [ALARM_NOTIFICATION_MINUTES],
     recurrence: { type: "none" as const, daysOfWeek: [] },
     ...(index > 0 ? { status: "pending" as const, exceptions: {} } : {}),
   }));
@@ -93,8 +97,9 @@ export function blankAlarm(): AlarmInput {
     eventColor: "",
     date: localDateKey(new Date()),
     time: "09:00",
+    timeZone: localTimeZone(),
     recurrence: { type: "none", daysOfWeek: [] },
-    notifications: [0],
+    notifications: [ALARM_NOTIFICATION_MINUTES],
     status: "pending",
     exceptions: {},
   };

@@ -69,6 +69,7 @@ async function saveSqliteBatch(entries: AlarmBatchEntry[]) {
         id,
         title: normalizeAlarmTitle(input.title ?? alarm.title),
         updatedAt: now,
+        scheduleRevision: alarm.scheduleRevision + 1,
       });
     }
     return alarmSchema.parse({
@@ -77,6 +78,7 @@ async function saveSqliteBatch(entries: AlarmBatchEntry[]) {
       title: normalizeAlarmTitle(input.title),
       createdAt: now,
       updatedAt: now,
+      scheduleRevision: 1,
     });
   });
 

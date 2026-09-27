@@ -47,6 +47,7 @@ function saveBrowserBatch(entries: AlarmBatchEntry[]) {
         id,
         title: normalizeAlarmTitle(input.title ?? existing.title),
         updatedAt: now,
+        scheduleRevision: existing.scheduleRevision + 1,
       });
       byId.set(id, alarm);
       return alarm;
@@ -57,6 +58,7 @@ function saveBrowserBatch(entries: AlarmBatchEntry[]) {
       title: normalizeAlarmTitle(input.title),
       createdAt: now,
       updatedAt: now,
+      scheduleRevision: 1,
     });
     byId.set(alarm.id, alarm);
     return alarm;

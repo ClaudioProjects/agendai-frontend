@@ -16,6 +16,7 @@ function input(overrides: Partial<AlarmInput> = {}): AlarmInput {
     eventColor: "",
     date: "2026-09-09",
     time: "10:15",
+    timeZone: "America/Sao_Paulo",
     recurrence: { type: "none", daysOfWeek: [] },
     notifications: [0],
     status: "pending",
@@ -92,6 +93,16 @@ describe("agenda de alarmes", () => {
       type: "monthly",
       endDate: undefined,
     });
+  });
+
+  test("normaliza todos os avisos para um minuto antes", () => {
+    const [alarm] = scheduledAlarmInputs(input({ notifications: [0, 15] }), {
+      weekAnchor: "2026-09-09",
+      daysOfWeek: [3],
+      recurrenceType: "none",
+    });
+
+    expect(alarm.notifications).toEqual([1]);
   });
 
   test("rejeita horários fora do formato de 24 horas", () => {

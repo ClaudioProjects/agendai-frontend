@@ -7,7 +7,6 @@ import {
   formatDate,
   getAlarmTitle,
   isAlarmOccurrence,
-  notificationOptions,
 } from "../libs/alarm";
 import { useAlarms } from "../App";
 import { cn } from "../libs/cn";
@@ -120,14 +119,7 @@ export function AlarmDetailPage() {
     {
       icon: "bell" as const,
       label: "Notificações",
-      value:
-        alarm.notifications
-          .map(
-            (value) =>
-              notificationOptions.find((item) => item.value === value)?.label ??
-              `${value} min antes`,
-          )
-          .join(", ") || "Sem avisos",
+      value: "1 minuto antes",
     },
     ...(alarm.reminderType === "pay_bill" && alarm.amount !== undefined
       ? [

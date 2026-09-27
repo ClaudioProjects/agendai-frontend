@@ -13,12 +13,14 @@ function alarm(overrides: Partial<Alarm> = {}): Alarm {
     reminderType: "reminder",
     date: "2026-09-07",
     time: "10:00",
+    timeZone: "America/Sao_Paulo",
     eventType: "DEFAULT",
     recurrence: { type: "weekly", daysOfWeek: [1] },
     notifications: [0],
     status: "pending",
     createdAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-09-01T00:00:00.000Z",
+    scheduleRevision: 1,
     exceptions: {},
     ...overrides,
   };
@@ -69,5 +71,20 @@ describe("isAlarmForDate", () => {
     const result = parseStoredAlarm({ ...alarm(), title: "" });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.title).toBe("Lembrete");
+  });
+
+  test("migra lembretes legados para o aviso fixo e uma revisão inicial", () => {
+    const result = parseStoredAlarm({
+      ...alarm({ notifications: [0, 15] }),
+      timeZone: undefined,
+      scheduleRevision: undefined,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.notifications).toEqual([1]);
+      expect(result.data.scheduleRevision).toBe(1);
+      expect(result.data.timeZone).toBeTruthy();
+    }
   });
 });

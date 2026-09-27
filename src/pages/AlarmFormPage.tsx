@@ -23,6 +23,7 @@ function toAlarmInput(alarm: Alarm): AlarmInput {
     eventColor: alarm.eventColor,
     date: alarm.date,
     time: alarm.time,
+    timeZone: alarm.timeZone,
     recurrence: alarm.recurrence,
     notifications: alarm.notifications,
     status: alarm.status,

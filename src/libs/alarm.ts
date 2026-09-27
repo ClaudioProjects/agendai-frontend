@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const DEFAULT_ALARM_TITLE = "Lembrete";
+export const ALARM_NOTIFICATION_MINUTES = 1;
 
 export const EVENT_TYPES = [
   "DEFAULT",
@@ -36,6 +37,7 @@ export const alarmSchema = z
     eventColor: z.string().optional(),
     date: z.string(),
     time: z.string(),
+    timeZone: z.string().min(1),
     recurrence: z.object({
       type: z.enum(RECURRENCE_TYPES),
       endDate: z.string().optional(),
@@ -45,6 +47,7 @@ export const alarmSchema = z
     status: z.enum(["pending", "completed", "cancelled"]),
     createdAt: z.string(),
     updatedAt: z.string(),
+    scheduleRevision: z.number().int().positive(),
     exceptions: z
       .record(z.string(), z.enum(["cancelled", "completed"]))
       .default({}),
@@ -59,7 +62,10 @@ export const alarmSchema = z
     }
   });
 export type Alarm = z.infer<typeof alarmSchema>;
-export type AlarmInput = Omit<Alarm, "id" | "createdAt" | "updatedAt">;
+export type AlarmInput = Omit<
+  Alarm,
+  "id" | "createdAt" | "updatedAt" | "scheduleRevision"
+>;
 export type EventType = (typeof EVENT_TYPES)[number];
 export type RecurrenceType = (typeof RECURRENCE_TYPES)[number];
 export type ReminderType = (typeof REMINDER_TYPES)[number];
@@ -96,12 +102,7 @@ export const eventMeta: Record<
   OTHER: { label: "Outro", icon: "•", color: "var(--category-other)" },
 };
 export const notificationOptions = [
-  { value: 0, label: "Na hora" },
-  { value: 5, label: "5 min antes" },
-  { value: 15, label: "15 min antes" },
-  { value: 30, label: "30 min antes" },
-  { value: 60, label: "1 hora antes" },
-  { value: 1440, label: "1 dia antes" },
+  { value: ALARM_NOTIFICATION_MINUTES, label: "1 minuto antes" },
 ];
 export function getAlarmTitle(alarm: Pick<Alarm, "title">) {
   return normalizeAlarmTitle(alarm.title);
@@ -115,6 +116,20 @@ export function formatCurrency(amount: number) {
 }
 export function localDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+export function localTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function normalizeTimeZone(value: unknown) {
+  if (typeof value !== "string" || !value) return localTimeZone();
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return value;
+  } catch {
+    return localTimeZone();
+  }
 }
 export function dateFromParts(date: string, time: string) {
   return new Date(`${date}T${time}:00`);
@@ -157,6 +172,14 @@ export function parseStoredAlarm(value: unknown) {
   return alarmSchema.safeParse({
     ...stored,
     title: normalizeAlarmTitle(stored.title),
+    timeZone: normalizeTimeZone(stored.timeZone),
+    scheduleRevision:
+      typeof stored.scheduleRevision === "number" &&
+      Number.isInteger(stored.scheduleRevision) &&
+      stored.scheduleRevision > 0
+        ? stored.scheduleRevision
+        : 1,
+    notifications: [ALARM_NOTIFICATION_MINUTES],
   });
 }
 export function formatDate(

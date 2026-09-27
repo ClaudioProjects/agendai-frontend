@@ -3,7 +3,6 @@ import {
   RECURRENCE_TYPES,
   eventMeta,
   localDateKey,
-  notificationOptions,
   type AlarmInput,
   type EventType,
   type RecurrenceType,
@@ -210,32 +209,10 @@ export function AlarmFormFields({
           />
         </label>
       )}
-      <div className={label}>Avisar</div>
-      <div className="-mt-[9px] grid grid-cols-2 gap-2">
-        {notificationOptions.map((option) => (
-          <label
-            className="flex items-center gap-2 rounded-[10px] border border-border p-2 text-[11px] text-foreground"
-            key={option.value}
-          >
-            <input
-              className="m-0 size-4 accent-primary"
-              type="checkbox"
-              checked={form.notifications.includes(option.value)}
-              onChange={() =>
-                set(
-                  "notifications",
-                  form.notifications.includes(option.value)
-                    ? form.notifications.filter(
-                        (value) => value !== option.value,
-                      )
-                    : [...form.notifications, option.value],
-                )
-              }
-            />
-            <span>{option.label}</span>
-          </label>
-        ))}
-      </div>
+      <div className={label}>Aviso</div>
+      <p className="-mt-[9px] m-0 rounded-[10px] border border-border p-2 text-[11px] text-foreground">
+        Você será avisado 1 minuto antes.
+      </p>
     </div>
   );
 }

@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
-import { formatCurrency, type AlarmInput } from "../libs/alarm";
+import {
+  ALARM_NOTIFICATION_MINUTES,
+  formatCurrency,
+  localTimeZone,
+  type AlarmInput,
+} from "../libs/alarm";
 import { blankAlarm, validateAlarmInput } from "../libs/alarm-form";
 import { AiApiError, aiInterpreter, type AlarmDraft } from "../libs/ai";
 import { cn } from "../libs/cn";
@@ -64,6 +69,7 @@ function toAlarmInput(draft: AlarmDraft): AlarmInput {
     eventColor: draft.eventColor ?? undefined,
     date: draft.date!,
     time: draft.time!,
+    timeZone: localTimeZone(),
     recurrence: draft.recurrence
       ? {
           type: draft.recurrence.type ?? "none",
@@ -71,7 +77,7 @@ function toAlarmInput(draft: AlarmDraft): AlarmInput {
           daysOfWeek: draft.recurrence.daysOfWeek ?? undefined,
         }
       : { type: "none" },
-    notifications: draft.notifications ?? [0],
+    notifications: [ALARM_NOTIFICATION_MINUTES],
     status: draft.status ?? "pending",
     exceptions: draft.exceptions ?? {},
   };
@@ -96,7 +102,7 @@ function draftToFormInput(draft: AlarmDraft): AlarmInput {
           daysOfWeek: draft.recurrence.daysOfWeek ?? undefined,
         }
       : fallback.recurrence,
-    notifications: draft.notifications ?? [0],
+    notifications: [ALARM_NOTIFICATION_MINUTES],
     status: draft.status ?? "pending",
     exceptions: draft.exceptions ?? {},
   };
