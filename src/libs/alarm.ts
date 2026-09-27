@@ -165,6 +165,19 @@ export function isAlarmForDate(alarm: Alarm, dateKey: string) {
   );
 }
 
+export function completionForOccurrence(alarm: Alarm, dateKey: string) {
+  if (
+    alarm.status !== "pending" ||
+    !isAlarmOccurrence(alarm, dateKey) ||
+    alarm.exceptions[dateKey]
+  )
+    return null;
+  if (alarm.recurrence.type === "none") return { status: "completed" as const };
+  return {
+    exceptions: { ...alarm.exceptions, [dateKey]: "completed" as const },
+  };
+}
+
 export function parseStoredAlarm(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return alarmSchema.safeParse(value);

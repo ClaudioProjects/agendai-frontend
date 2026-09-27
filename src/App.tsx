@@ -16,7 +16,12 @@ import {
   createBrowserRouter,
   useLocation,
 } from "react-router";
-import type { Alarm, AlarmInput } from "./libs/alarm";
+import {
+  completionForOccurrence,
+  isAlarmOccurrence,
+  type Alarm,
+  type AlarmInput,
+} from "./libs/alarm";
 import { getAlarmStorage } from "./libs/storage";
 import { notificationScheduler } from "./libs/notifications";
 import { AppShell } from "./components/layout/AppShell";
@@ -45,6 +50,25 @@ type ThemeContextValue = { theme: Theme; setTheme: (theme: Theme) => void };
 const AlarmContext = createContext<AlarmContextValue | null>(null);
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const storage = getAlarmStorage();
+
+async function applyNativeConfirmations() {
+  const confirmations = await notificationScheduler.getConfirmations();
+  for (const confirmation of confirmations) {
+    const alarm = await storage.findById(confirmation.alarmId);
+    if (
+      !alarm ||
+      alarm.scheduleRevision !== confirmation.scheduleRevision ||
+      !isAlarmOccurrence(alarm, confirmation.occurrenceDate)
+    )
+      continue;
+    const completion = completionForOccurrence(
+      alarm,
+      confirmation.occurrenceDate,
+    );
+    if (completion) await storage.update(alarm.id, completion);
+  }
+  await notificationScheduler.acknowledgeConfirmations(confirmations);
+}
 
 export function useAlarms() {
   const value = useContext(AlarmContext);
@@ -79,6 +103,7 @@ function AppProviders({ children }: PropsWithChildren) {
   const refresh = useCallback(async (reconcileNotifications = false) => {
     setLoading(true);
     try {
+      await applyNativeConfirmations();
       const items = await storage.list();
       setAlarms(items);
       setError(null);
@@ -369,5 +394,43 @@ export default function App() {
 
 function AppContent() {
   const { initialLoading } = useAlarms();
+  useEffect(() => {
+    let disposed = false;
+    let subscription: { remove: () => Promise<void> } | undefined;
+    void notificationScheduler
+      .onOpen(({ alarmId, occurrenceDate, scheduleRevision }) => {
+        if (
+          disposed ||
+          !alarmId ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(occurrenceDate) ||
+          !Number.isInteger(scheduleRevision) ||
+          scheduleRevision <= 0
+        )
+          return;
+        void (async () => {
+          const alarm = await storage.findById(alarmId);
+          if (
+            !alarm ||
+            alarm.scheduleRevision !== scheduleRevision ||
+            !isAlarmOccurrence(alarm, occurrenceDate)
+          )
+            return;
+          await router.navigate(
+            `/alarms/${encodeURIComponent(alarmId)}?occurrence=${encodeURIComponent(occurrenceDate)}`,
+          );
+        })();
+      })
+      .then((handle) => {
+        if (disposed) {
+          void handle?.remove();
+          return;
+        }
+        subscription = handle;
+      });
+    return () => {
+      disposed = true;
+      void subscription?.remove();
+    };
+  }, []);
   return initialLoading ? <PageLoading /> : <RouterProvider router={router} />;
 }

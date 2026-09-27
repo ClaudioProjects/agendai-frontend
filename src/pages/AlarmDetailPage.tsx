@@ -111,6 +111,7 @@ export function AlarmDetailPage() {
       }),
     },
     { icon: "clock" as const, label: "Horário", value: alarm.time },
+    { icon: "calendar" as const, label: "Fuso", value: alarm.timeZone },
     {
       icon: "repeat" as const,
       label: "Recorrência",

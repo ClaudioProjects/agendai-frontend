@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   alarmSchema,
+  completionForOccurrence,
   isAlarmForDate,
   parseStoredAlarm,
   type Alarm,
@@ -86,5 +87,21 @@ describe("isAlarmForDate", () => {
       expect(result.data.scheduleRevision).toBe(1);
       expect(result.data.timeZone).toBeTruthy();
     }
+  });
+
+  test("conclui apenas a ocorrência confirmada de uma série", () => {
+    expect(completionForOccurrence(alarm(), "2026-09-07")).toEqual({
+      exceptions: { "2026-09-07": "completed" },
+    });
+    expect(completionForOccurrence(alarm(), "2026-09-08")).toBeNull();
+  });
+
+  test("conclui um alarme único ao confirmá-lo", () => {
+    expect(
+      completionForOccurrence(
+        alarm({ recurrence: { type: "none" } }),
+        "2026-09-07",
+      ),
+    ).toEqual({ status: "completed" });
   });
 });

@@ -23,7 +23,7 @@ type InputMode = "voice" | "text";
 const examples = [
   "Tenho dentista amanhã às 14h.",
   "Toda segunda às 8h tenho academia.",
-  "Me lembre de pagar a conta sexta às 18h e me avise 1 hora antes.",
+  "Me lembre de pagar a conta sexta às 18h.",
 ];
 
 const recordingMimeTypes = [
