@@ -210,7 +210,7 @@ export function AlarmFormFields({
         </label>
       )}
       <div className={label}>Aviso</div>
-      <p className="-mt-[9px] m-0 rounded-[10px] border border-border p-2 text-[11px] text-foreground">
+      <p className="m-0 text-[11px] text-foreground text-warning">
         Você será avisado 1 minuto antes ({form.timeZone}).
       </p>
     </div>
