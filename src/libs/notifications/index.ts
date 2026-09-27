@@ -15,6 +15,8 @@ export interface NotificationScheduler {
   checkPermission(): Promise<NotificationPermission>;
   requestPermission(): Promise<NotificationPermission>;
   requestExactAlarmPermission(): Promise<void>;
+  checkFullScreenIntentPermission(): Promise<boolean>;
+  requestFullScreenIntentPermission(): Promise<void>;
   reconcile(alarms: Alarm[]): Promise<void>;
   getConfirmations(): Promise<NativeAlarmConfirmation[]>;
   acknowledgeConfirmations(
@@ -46,6 +48,10 @@ const browserScheduler: NotificationScheduler = {
     return Notification.requestPermission();
   },
   async requestExactAlarmPermission() {},
+  async checkFullScreenIntentPermission() {
+    return true;
+  },
+  async requestFullScreenIntentPermission() {},
   async reconcile() {},
   async getConfirmations() {
     return [];
@@ -78,6 +84,9 @@ const nativeScheduler: NotificationScheduler = {
         throw new Error("Permita as notificações para agendar este lembrete.");
       }
     }
+    if (!(await alarmScheduler.checkFullScreenIntentPermission())) {
+      await alarmScheduler.requestFullScreenIntentPermission();
+    }
     await alarmScheduler.upsert(alarm);
   },
   async cancel(alarmId) {
@@ -95,6 +104,10 @@ const nativeScheduler: NotificationScheduler = {
       await LocalNotifications.changeExactNotificationSetting();
     }
   },
+  checkFullScreenIntentPermission: () =>
+    alarmScheduler.checkFullScreenIntentPermission(),
+  requestFullScreenIntentPermission: () =>
+    alarmScheduler.requestFullScreenIntentPermission(),
   async reconcile(alarms) {
     await alarmScheduler.reconcile(alarms.filter(shouldSchedule));
   },
@@ -117,6 +130,10 @@ export const notificationScheduler: NotificationScheduler = {
   checkPermission: () => scheduler().checkPermission(),
   requestPermission: () => scheduler().requestPermission(),
   requestExactAlarmPermission: () => scheduler().requestExactAlarmPermission(),
+  checkFullScreenIntentPermission: () =>
+    scheduler().checkFullScreenIntentPermission(),
+  requestFullScreenIntentPermission: () =>
+    scheduler().requestFullScreenIntentPermission(),
   reconcile: (alarms) => scheduler().reconcile(alarms),
   getConfirmations: () => scheduler().getConfirmations(),
   acknowledgeConfirmations: (confirmations) =>

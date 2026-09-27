@@ -1,6 +1,10 @@
 package com.claudiodev.agendai;
 
+import android.app.NotificationManager;
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -83,6 +87,23 @@ public class AlarmSchedulerPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void checkFullScreenIntentPermission(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("granted", canUseFullScreenIntent());
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void requestFullScreenIntentPermission(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !canUseFullScreenIntent()) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                .setData(Uri.parse("package:" + getContext().getPackageName()));
+            getActivity().startActivity(intent);
+        }
+        call.resolve();
+    }
+
     @Override
     protected void handleOnNewIntent(Intent intent) {
         publishOpenEvent(intent);
@@ -98,5 +119,12 @@ public class AlarmSchedulerPlugin extends Plugin {
         } catch (JSONException ignored) {
             // A malformed intent must not interrupt the Capacitor bridge.
         }
+    }
+
+    private boolean canUseFullScreenIntent() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true;
+        NotificationManager notificationManager =
+            (NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        return notificationManager.canUseFullScreenIntent();
     }
 }

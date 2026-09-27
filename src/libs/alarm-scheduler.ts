@@ -25,6 +25,8 @@ type AlarmSchedulerPlugin = {
   acknowledgeConfirmations(options: {
     confirmations: NativeAlarmConfirmation[];
   }): Promise<void>;
+  checkFullScreenIntentPermission(): Promise<{ granted: boolean }>;
+  requestFullScreenIntentPermission(): Promise<void>;
   addListener(
     eventName: "alarmOpened",
     listener: (event: NativeAlarmOpen) => void,
@@ -58,6 +60,15 @@ export const alarmScheduler = {
   async acknowledgeConfirmations(confirmations: NativeAlarmConfirmation[]) {
     if (!isAndroid() || !confirmations.length) return;
     await nativePlugin.acknowledgeConfirmations({ confirmations });
+  },
+  async checkFullScreenIntentPermission() {
+    if (!isAndroid()) return true;
+    const { granted } = await nativePlugin.checkFullScreenIntentPermission();
+    return granted;
+  },
+  async requestFullScreenIntentPermission() {
+    if (!isAndroid()) return;
+    await nativePlugin.requestFullScreenIntentPermission();
   },
   async onOpen(listener: (event: NativeAlarmOpen) => void) {
     if (!isAndroid()) return undefined;

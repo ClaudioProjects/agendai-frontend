@@ -12,6 +12,10 @@ export function SettingsPage() {
   const [permission, setPermission] =
     useState<NotificationPermission>("default");
   const [permissionError, setPermissionError] = useState("");
+  const [fullScreenIntentPermission, setFullScreenIntentPermission] = useState<
+    boolean | null
+  >(null);
+  const [fullScreenIntentError, setFullScreenIntentError] = useState("");
 
   const refreshPermission = async () => {
     try {
@@ -24,10 +28,34 @@ export function SettingsPage() {
     }
   };
 
+  const refreshFullScreenIntentPermission = async () => {
+    try {
+      setFullScreenIntentPermission(
+        await notificationScheduler.checkFullScreenIntentPermission(),
+      );
+      setFullScreenIntentError("");
+    } catch {
+      setFullScreenIntentError(
+        "Não foi possível consultar a permissão para abrir alarmes.",
+      );
+    }
+  };
+
   useEffect(() => {
     // Read the platform permission after the settings screen mounts.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshPermission();
+    void refreshFullScreenIntentPermission();
+  }, []);
+
+  useEffect(() => {
+    const refreshOnResume = () => {
+      if (document.visibilityState === "visible")
+        void refreshFullScreenIntentPermission();
+    };
+    document.addEventListener("visibilitychange", refreshOnResume);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnResume);
   }, []);
 
   const request = async () => {
@@ -37,6 +65,17 @@ export function SettingsPage() {
     } catch {
       setPermissionError(
         "Não foi possível solicitar a permissão de notificações.",
+      );
+    }
+  };
+
+  const requestFullScreenIntent = async () => {
+    try {
+      await notificationScheduler.requestFullScreenIntentPermission();
+      await refreshFullScreenIntentPermission();
+    } catch {
+      setFullScreenIntentError(
+        "Não foi possível abrir a configuração para a tela do alarme.",
       );
     }
   };
@@ -120,6 +159,30 @@ export function SettingsPage() {
         {permissionError && (
           <p className="mt-2 text-xs text-danger" role="alert">
             {permissionError}
+          </p>
+        )}
+        <button
+          className="mt-2 flex w-full items-center gap-3 rounded-[17px] border border-border bg-surface p-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          onClick={() => void requestFullScreenIntent()}
+        >
+          <span className="grid size-8 place-items-center rounded-[11px] bg-muted-surface text-primary">
+            <Icon name="bell" />
+          </span>
+          <span className="grid flex-1 gap-1">
+            <strong className="text-[13px]">Abrir alarme na hora</strong>
+            <small className="text-[11px] text-muted">
+              {fullScreenIntentPermission === true
+                ? "A tela de conclusão abre no horário do alarme"
+                : "Toque para permitir a abertura da tela do alarme"}
+            </small>
+          </span>
+          <span className="text-muted">
+            <Icon name="chevron-right" size={18} />
+          </span>
+        </button>
+        {fullScreenIntentError && (
+          <p className="mt-2 text-xs text-danger" role="alert">
+            {fullScreenIntentError}
           </p>
         )}
       </section>

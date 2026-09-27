@@ -22,11 +22,12 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Persists alarm series independently of the WebView and schedules exactly one upcoming
- * notification for each active series. The receiver advances that notification after delivery.
+ * Persists alarm series independently of the WebView and schedules the warning and due-time
+ * triggers for the next occurrence of each active series.
  */
 final class AlarmScheduler {
     static final String ACTION_TRIGGER = "com.claudiodev.agendai.ALARM_TRIGGER";
+    static final String ACTION_DUE = "com.claudiodev.agendai.ALARM_DUE";
     static final String ACTION_CONFIRM = "com.claudiodev.agendai.ALARM_CONFIRM";
     static final String ACTION_OPEN = "com.claudiodev.agendai.ALARM_OPEN";
     static final String ACTION_RESCHEDULE = "com.claudiodev.agendai.ALARM_RESCHEDULE";
@@ -83,6 +84,7 @@ final class AlarmScheduler {
     synchronized void remove(String alarmId) throws JSONException {
         cancelScheduledJob(alarmId);
         notificationManager.cancel(requestCodeFor(alarmId, false));
+        notificationManager.cancel(dueRequestCodeFor(alarmId, false));
         JSONObject all = alarms();
         all.remove(alarmId);
         writeAlarms(all);
@@ -102,7 +104,18 @@ final class AlarmScheduler {
         try {
             JSONObject alarm = alarms().optJSONObject(alarmId);
             if (!matches(alarm, revision, occurrenceDate)) return;
-            showNotification(alarm, occurrenceDate, revision);
+            showNotification(alarm, occurrenceDate, revision, false);
+        } catch (JSONException ignored) {
+            // The native state is retried during the next reconciliation from the app.
+        }
+    }
+
+    synchronized void openDueAlarm(String alarmId, int revision, String occurrenceDate) {
+        try {
+            JSONObject alarm = alarms().optJSONObject(alarmId);
+            if (!matches(alarm, revision, occurrenceDate)) return;
+            notificationManager.cancel(requestCodeFor(alarmId, false));
+            showNotification(alarm, occurrenceDate, revision, true);
             scheduleNext(alarmId);
         } catch (JSONException ignored) {
             // The native state is retried during the next reconciliation from the app.
@@ -128,6 +141,7 @@ final class AlarmScheduler {
             writeAlarms(all);
             appendConfirmation(alarmId, occurrenceDate, revision);
             notificationManager.cancel(requestCodeFor(alarmId, false));
+            notificationManager.cancel(dueRequestCodeFor(alarmId, false));
             cancelScheduledJob(alarmId);
             scheduleNext(alarmId);
         } catch (JSONException ignored) {
@@ -186,19 +200,43 @@ final class AlarmScheduler {
             return;
         }
 
-        int requestCode = requestCodeFor(alarmId, true);
+        scheduleReceiver(
+            alarmId,
+            requestCodeFor(alarmId, true),
+            ACTION_TRIGGER,
+            next.occurrenceDate,
+            alarm.optInt("scheduleRevision"),
+            next.notificationAt.toInstant().toEpochMilli()
+        );
+        scheduleReceiver(
+            alarmId,
+            dueRequestCodeFor(alarmId, true),
+            ACTION_DUE,
+            next.occurrenceDate,
+            alarm.optInt("scheduleRevision"),
+            next.alarmAt.toInstant().toEpochMilli()
+        );
+    }
+
+    private void scheduleReceiver(
+        String alarmId,
+        int requestCode,
+        String action,
+        LocalDate occurrenceDate,
+        int revision,
+        long triggerAt
+    ) {
         Intent intent = new Intent(context, AlarmSchedulerReceiver.class)
-            .setAction(ACTION_TRIGGER)
+            .setAction(action)
             .putExtra("alarmId", alarmId)
-            .putExtra("occurrenceDate", next.occurrenceDate.toString())
-            .putExtra("scheduleRevision", alarm.optInt("scheduleRevision"));
+            .putExtra("occurrenceDate", occurrenceDate.toString())
+            .putExtra("scheduleRevision", revision);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
-        long triggerAt = next.notificationAt.toInstant().toEpochMilli();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
         } else {
@@ -207,9 +245,15 @@ final class AlarmScheduler {
     }
 
     private void cancelScheduledJob(String alarmId) {
-        int requestCode = requestCodeFor(alarmId, false);
+        cancelScheduledReceiver(alarmId, requestCodeFor(alarmId, false), ACTION_TRIGGER);
+        cancelScheduledReceiver(alarmId, dueRequestCodeFor(alarmId, false), ACTION_DUE);
+    }
+
+    private void cancelScheduledReceiver(String alarmId, int requestCode, String action) {
         if (requestCode == 0) return;
-        Intent intent = new Intent(context, AlarmSchedulerReceiver.class).setAction(ACTION_TRIGGER);
+        Intent intent = new Intent(context, AlarmSchedulerReceiver.class)
+            .setAction(action)
+            .putExtra("alarmId", alarmId);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -222,7 +266,12 @@ final class AlarmScheduler {
         }
     }
 
-    private void showNotification(JSONObject alarm, String occurrenceDate, int revision) {
+    private void showNotification(
+        JSONObject alarm,
+        String occurrenceDate,
+        int revision,
+        boolean alarmIsDue
+    ) {
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -231,7 +280,9 @@ final class AlarmScheduler {
         }
         ensureChannel();
         String alarmId = alarm.optString("id");
-        int requestCode = requestCodeFor(alarmId, true);
+        int requestCode = alarmIsDue
+            ? dueRequestCodeFor(alarmId, true)
+            : requestCodeFor(alarmId, true);
         Intent openIntent = new Intent(context, MainActivity.class)
             .setAction(ACTION_OPEN)
             .putExtra("alarmId", alarmId)
@@ -256,17 +307,21 @@ final class AlarmScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
         String title = alarm.optString("title", "Lembrete");
-        String body = alarm.optString("description", "Seu lembrete acontece em 1 minuto.");
+        String body = alarm.optString(
+            "description",
+            alarmIsDue ? "Está na hora deste lembrete." : "Seu lembrete acontece em 1 minuto."
+        );
         NotificationCompat.Builder notification = new NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(context.getApplicationInfo().icon)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(alarmIsDue ? NotificationCompat.PRIORITY_MAX : NotificationCompat.PRIORITY_HIGH)
+            .setCategory(alarmIsDue ? NotificationCompat.CATEGORY_ALARM : NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(openPendingIntent)
             .addAction(0, "Confirmar", confirmPendingIntent);
+        if (alarmIsDue) notification.setFullScreenIntent(openPendingIntent, true);
         notificationManager.notify(requestCode, notification.build());
     }
 
@@ -358,9 +413,10 @@ final class AlarmScheduler {
     ) {
         if (occurrenceDate.isBefore(LocalDate.parse(alarm.optString("date"))) || afterEnd(occurrenceDate, end)) return null;
         if (hasException(alarm, occurrenceDate)) return null;
-        ZonedDateTime notificationAt = occurrenceDate.atTime(time).atZone(zone).minusMinutes(1);
+        ZonedDateTime alarmAt = occurrenceDate.atTime(time).atZone(zone);
+        ZonedDateTime notificationAt = alarmAt.minusMinutes(1);
         if (!notificationAt.isAfter(now)) return null;
-        return new Trigger(occurrenceDate, notificationAt);
+        return new Trigger(occurrenceDate, notificationAt, alarmAt);
     }
 
     private boolean matches(JSONObject alarm, int revision, String occurrenceDate) {
@@ -481,13 +537,19 @@ final class AlarmScheduler {
         }
     }
 
+    private int dueRequestCodeFor(String alarmId, boolean create) {
+        return requestCodeFor(alarmId + ":due", create);
+    }
+
     private static final class Trigger {
         final LocalDate occurrenceDate;
         final ZonedDateTime notificationAt;
+        final ZonedDateTime alarmAt;
 
-        Trigger(LocalDate occurrenceDate, ZonedDateTime notificationAt) {
+        Trigger(LocalDate occurrenceDate, ZonedDateTime notificationAt, ZonedDateTime alarmAt) {
             this.occurrenceDate = occurrenceDate;
             this.notificationAt = notificationAt;
+            this.alarmAt = alarmAt;
         }
     }
 }

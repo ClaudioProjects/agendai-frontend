@@ -15,6 +15,8 @@ public class AlarmSchedulerReceiver extends BroadcastReceiver {
         AlarmScheduler scheduler = new AlarmScheduler(context);
         if (AlarmScheduler.ACTION_TRIGGER.equals(intent.getAction())) {
             scheduler.trigger(alarmId, revision, occurrenceDate);
+        } else if (AlarmScheduler.ACTION_DUE.equals(intent.getAction())) {
+            scheduler.openDueAlarm(alarmId, revision, occurrenceDate);
         } else if (AlarmScheduler.ACTION_CONFIRM.equals(intent.getAction())) {
             scheduler.confirm(alarmId, revision, occurrenceDate);
         }
