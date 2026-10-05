@@ -4,6 +4,7 @@ import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { AlarmScheduleFields } from "../components/alarms/AlarmScheduleFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
+import { useBackNavigation } from "../libs/back-navigation";
 import {
   nearestAlarmOccurrence,
   type Alarm,
@@ -38,13 +39,14 @@ function toAlarmInput(alarm: Alarm): AlarmInput {
 export function AlarmFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const { alarms, loading, saveAlarmBatch } = useAlarms();
   const editing = alarms.find((alarm) => alarm.id === id);
   const [form, setForm] = useState<AlarmInput>(
-    editing ? toAlarmInput(editing) : blankAlarm(),
+    editing ? toAlarmInput(editing) : blankAlarm()
   );
   const [schedule, setSchedule] = useState<AlarmSchedule>(() =>
-    scheduleFromAlarmInput(editing ? toAlarmInput(editing) : blankAlarm()),
+    scheduleFromAlarmInput(editing ? toAlarmInput(editing) : blankAlarm())
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -105,7 +107,7 @@ export function AlarmFormPage() {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Não foi possível salvar o lembrete.",
+          : "Não foi possível salvar o lembrete."
       );
     } finally {
       setSaving(false);
@@ -124,7 +126,7 @@ export function AlarmFormPage() {
         <button
           type="button"
           className="inline-flex size-[42px] justify-self-start items-center justify-center rounded-full border-0 bg-transparent text-accent hover:bg-muted-surface hover:text-foreground"
-          onClick={() => navigate(-1)}
+          onClick={() => void goBack()}
           aria-label="Voltar"
         >
           <Icon name="arrow-left" />

@@ -25,6 +25,11 @@ import {
 import { getAlarmStorage } from "./libs/storage";
 import { notificationScheduler } from "./libs/notifications";
 import { requestStartupPermissions } from "./libs/permissions";
+import { appNavigation } from "./libs/app-navigation";
+import {
+  BackNavigationContext,
+  createBackNavigation,
+} from "./libs/back-navigation";
 import { AppShell } from "./components/layout/AppShell";
 import { HomePage } from "./pages/HomePage";
 import { WeekPage } from "./pages/WeekPage";
@@ -64,7 +69,7 @@ async function applyNativeConfirmations() {
       continue;
     const completion = completionForOccurrence(
       alarm,
-      confirmation.occurrenceDate,
+      confirmation.occurrenceDate
     );
     if (completion) await storage.update(alarm.id, completion);
   }
@@ -97,8 +102,7 @@ function AppProviders({ children }: PropsWithChildren) {
   const hasRequestedNotificationPermission = useRef(false);
   const [theme, setThemeState] = useState<Theme>(
     () =>
-      (window.localStorage.getItem("agendai:theme") as Theme | null) ??
-      "system",
+      (window.localStorage.getItem("agendai:theme") as Theme | null) ?? "system"
   );
 
   const refresh = useCallback(async (reconcileNotifications = false) => {
@@ -113,13 +117,17 @@ function AppProviders({ children }: PropsWithChildren) {
           await notificationScheduler.reconcile(items);
         } catch (notificationError) {
           setError(
-            `Seus lembretes foram carregados, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`,
+            `Seus lembretes foram carregados, mas as notificações não puderam ser atualizadas: ${errorMessage(
+              notificationError
+            )}`
           );
         }
       }
     } catch (storageError) {
       setError(
-        `Não foi possível carregar seus lembretes: ${errorMessage(storageError)}`,
+        `Não foi possível carregar seus lembretes: ${errorMessage(
+          storageError
+        )}`
       );
     } finally {
       setLoading(false);
@@ -152,7 +160,9 @@ function AppProviders({ children }: PropsWithChildren) {
         await notificationScheduler.reconcile(await storage.list());
       } catch (permissionError) {
         setError(
-          `Não foi possível configurar as permissões: ${errorMessage(permissionError)}`,
+          `Não foi possível configurar as permissões: ${errorMessage(
+            permissionError
+          )}`
         );
       }
     };
@@ -192,7 +202,9 @@ function AppProviders({ children }: PropsWithChildren) {
           await notificationScheduler.schedule(result);
         }
       } catch (notificationError) {
-        const message = `O lembrete foi atualizado, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
+        const message = `O lembrete foi atualizado, mas as notificações não puderam ser atualizadas: ${errorMessage(
+          notificationError
+        )}`;
         setError(message);
         throw new Error(message, { cause: notificationError });
       } finally {
@@ -206,7 +218,7 @@ function AppProviders({ children }: PropsWithChildren) {
         inputs.map((input, index) => ({
           input,
           ...(index === 0 && id ? { id } : {}),
-        })),
+        }))
       );
       try {
         for (const result of results) {
@@ -214,7 +226,9 @@ function AppProviders({ children }: PropsWithChildren) {
           await notificationScheduler.schedule(result);
         }
       } catch (notificationError) {
-        const message = `Os lembretes foram salvos, mas as notificações não puderam ser atualizadas: ${errorMessage(notificationError)}`;
+        const message = `Os lembretes foram salvos, mas as notificações não puderam ser atualizadas: ${errorMessage(
+          notificationError
+        )}`;
         setError(message);
         throw new Error(message, { cause: notificationError });
       } finally {
@@ -381,16 +395,44 @@ const router = createBrowserRouter([
   { path: "/alarms/:id/edit", element: <AlarmFormPage /> },
 ]);
 
+const backNavigation = createBackNavigation(router, appNavigation);
+
 export default function App() {
   return (
     <AppProviders>
-      <AppContent />
+      <BackNavigationContext value={backNavigation}>
+        <AppContent />
+      </BackNavigationContext>
     </AppProviders>
   );
 }
 
 function AppContent() {
   const { initialLoading } = useAlarms();
+  useEffect(() => {
+    let disposed = false;
+    let subscription: { remove: () => Promise<void> } | undefined;
+
+    void appNavigation
+      .onBackButton(() => {
+        if (!disposed)
+          void backNavigation.handleNativeBack().catch(console.error);
+      })
+      .then((handle) => {
+        if (disposed) {
+          void handle?.remove();
+        } else {
+          subscription = handle;
+        }
+      })
+      .catch(console.error);
+
+    return () => {
+      disposed = true;
+      void subscription?.remove();
+    };
+  }, []);
+
   useEffect(() => {
     let disposed = false;
     let subscription: { remove: () => Promise<void> } | undefined;
@@ -413,7 +455,9 @@ function AppContent() {
           )
             return;
           await router.navigate(
-            `/alarms/${encodeURIComponent(alarmId)}?occurrence=${encodeURIComponent(occurrenceDate)}`,
+            `/alarms/${encodeURIComponent(
+              alarmId
+            )}?occurrence=${encodeURIComponent(occurrenceDate)}`
           );
         })();
       })

@@ -9,6 +9,7 @@ import {
   isAlarmOccurrence,
 } from "../libs/alarm";
 import { useAlarms } from "../App";
+import { useBackNavigation } from "../libs/back-navigation";
 import { cn } from "../libs/cn";
 
 const iconButton =
@@ -20,6 +21,7 @@ export function AlarmDetailPage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const { alarms, loading, removeAlarm, toggleComplete, updateAlarm } =
     useAlarms();
   const alarm = alarms.find((item) => item.id === id);
@@ -67,12 +69,12 @@ export function AlarmDetailPage() {
   const repeat =
     alarm.recurrence.type === "none"
       ? "Não se repete"
-      : ({
+      : {
           daily: "Todos os dias",
           weekly: "Toda semana",
           monthly: "Todo mês",
           yearly: "Todo ano",
-        }[alarm.recurrence.type] ?? "Recorrente");
+        }[alarm.recurrence.type] ?? "Recorrente";
 
   const runAction = async (action: () => Promise<void>) => {
     setActionError("");
@@ -82,7 +84,7 @@ export function AlarmDetailPage() {
       setActionError(
         error instanceof Error
           ? error.message
-          : "Não foi possível concluir esta ação.",
+          : "Não foi possível concluir esta ação."
       );
     }
   };
@@ -115,7 +117,9 @@ export function AlarmDetailPage() {
     {
       icon: "repeat" as const,
       label: "Recorrência",
-      value: `${repeat}${alarm.recurrence.endDate ? ` até ${alarm.recurrence.endDate}` : ""}`,
+      value: `${repeat}${
+        alarm.recurrence.endDate ? ` até ${alarm.recurrence.endDate}` : ""
+      }`,
     },
     {
       icon: "bell" as const,
@@ -138,7 +142,7 @@ export function AlarmDetailPage() {
       <header className="grid h-[70px] grid-cols-[42px_1fr_42px] items-center gap-2 border-b border-border px-[22px] pt-[max(14px,env(safe-area-inset-top))] pb-2 min-[700px]:px-[30px]">
         <button
           className={cn(iconButton, "justify-self-start")}
-          onClick={() => navigate(-1)}
+          onClick={() => void goBack()}
           aria-label="Voltar"
         >
           <Icon name="arrow-left" />
@@ -216,7 +220,7 @@ export function AlarmDetailPage() {
               key={label}
               className={cn(
                 "flex items-center gap-[13px] px-4 py-[15px]",
-                index < rows.length - 1 && "border-b border-border",
+                index < rows.length - 1 && "border-b border-border"
               )}
             >
               <span className="text-muted">
@@ -250,7 +254,7 @@ export function AlarmDetailPage() {
                 "inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[14px] border-0 px-[18px] text-[13px] font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                 completed
                   ? "bg-success text-success-foreground"
-                  : "bg-warning text-warning-foreground",
+                  : "bg-warning text-warning-foreground"
               )}
               onClick={() =>
                 void runAction(() =>
@@ -258,8 +262,8 @@ export function AlarmDetailPage() {
                     alarm.id,
                     alarm.recurrence.type === "none"
                       ? undefined
-                      : occurrenceDate,
-                  ),
+                      : occurrenceDate
+                  )
                 )
               }
               aria-label={
