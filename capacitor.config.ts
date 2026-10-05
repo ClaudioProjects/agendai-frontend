@@ -4,6 +4,6 @@ const config: CapacitorConfig = {
   appId: "com.claudiodev.agendai",
   appName: "AgendAI",
   webDir: "dist",
-  plugins: { LocalNotifications: { smallIcon: "ic_stat_icon_config_sample" } },
+  plugins: { LocalNotifications: { smallIcon: "ic_stat_alarm" } },
 };
 export default config;
