@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="AppTheme.Alarm" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/alarm_background</item>
+        <item name="android:colorAccent">@color/alarm_accent</item>
+    </style>
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">

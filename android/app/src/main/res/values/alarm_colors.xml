@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Native equivalents of the web theme tokens in src/index.css. -->
+    <color name="alarm_background">#fffcf7</color>
+    <color name="alarm_foreground">#10233f</color>
+    <color name="alarm_primary">#2f3d31</color>
+    <color name="alarm_primary_foreground">#fffaf2</color>
+    <color name="alarm_surface">#eee8de</color>
+    <color name="alarm_muted">#6d7680</color>
+    <color name="alarm_accent">#be4c16</color>
+</resources>

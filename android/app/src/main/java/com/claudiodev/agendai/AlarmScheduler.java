@@ -2,6 +2,8 @@ package com.claudiodev.agendai;
 
 import android.Manifest;
 import android.app.AlarmManager;
+import android.app.ActivityOptions;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -10,12 +12,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.UserManager;
+import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.YearMonth;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import androidx.core.content.ContextCompat;
 import java.util.Iterator;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -31,6 +31,8 @@ final class AlarmScheduler {
     static final String ACTION_CONFIRM = "com.claudiodev.agendai.ALARM_CONFIRM";
     static final String ACTION_OPEN = "com.claudiodev.agendai.ALARM_OPEN";
     static final String ACTION_RESCHEDULE = "com.claudiodev.agendai.ALARM_RESCHEDULE";
+    static final String ACTION_DISMISS = "com.claudiodev.agendai.ALARM_DISMISS";
+    static final String ACTION_RINGING_CHANGED = "com.claudiodev.agendai.RINGING_CHANGED";
 
     private static final String PREFERENCES = "agendai_alarm_scheduler";
     private static final String ALARMS = "alarms";
@@ -39,6 +41,9 @@ final class AlarmScheduler {
     private static final String CONFIRMATIONS = "confirmations";
     private static final String OPEN_EVENT = "open_event";
     private static final String CHANNEL_ID = "agendai_reminders";
+    private static final String ALARM_CHANNEL_ID = "agendai_alarms_v1";
+    private static final String RINGING = "ringing";
+    static final long MAX_RING_DURATION_MS = 10 * 60 * 1000L;
     private static final int FIRST_REQUEST_CODE = 10_000;
 
     private final Context context;
@@ -48,7 +53,10 @@ final class AlarmScheduler {
 
     AlarmScheduler(Context context) {
         this.context = context.getApplicationContext();
-        this.preferences = this.context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+        Context deviceStorage = this.context.createDeviceProtectedStorageContext();
+        UserManager users = (UserManager) this.context.getSystemService(Context.USER_SERVICE);
+        if (users.isUserUnlocked()) deviceStorage.moveSharedPreferencesFrom(this.context, PREFERENCES);
+        this.preferences = deviceStorage.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
         this.alarmManager = (AlarmManager) this.context.getSystemService(Context.ALARM_SERVICE);
         this.notificationManager = (NotificationManager) this.context.getSystemService(Context.NOTIFICATION_SERVICE);
     }
@@ -69,6 +77,7 @@ final class AlarmScheduler {
 
         Iterator<String> ids = replacement.keys();
         while (ids.hasNext()) scheduleNext(ids.next());
+        pruneRingingAlarms();
     }
 
     synchronized void upsert(JSONObject alarm) throws JSONException {
@@ -79,6 +88,7 @@ final class AlarmScheduler {
         all.put(alarmId, alarm);
         writeAlarms(all);
         scheduleNext(alarmId);
+        pruneRingingAlarms();
     }
 
     synchronized void remove(String alarmId) throws JSONException {
@@ -88,6 +98,7 @@ final class AlarmScheduler {
         JSONObject all = alarms();
         all.remove(alarmId);
         writeAlarms(all);
+        pruneRingingAlarms();
     }
 
     synchronized void rescheduleAll() {
@@ -115,7 +126,20 @@ final class AlarmScheduler {
             JSONObject alarm = alarms().optJSONObject(alarmId);
             if (!matches(alarm, revision, occurrenceDate)) return;
             notificationManager.cancel(requestCodeFor(alarmId, false));
+            JSONObject ringing = new JSONObject(preferences.getString(RINGING, "{}"));
+            JSONObject event = new JSONObject();
+            event.put("alarmId", alarmId);
+            event.put("occurrenceDate", occurrenceDate);
+            event.put("scheduleRevision", revision);
+            event.put("startedAt", System.currentTimeMillis());
+            ringing.put(alarmId, event);
+            preferences.edit().putString(RINGING, ringing.toString()).apply();
             showNotification(alarm, occurrenceDate, revision, true);
+            try {
+                ContextCompat.startForegroundService(context, new Intent(context, AlarmRingingService.class));
+            } catch (RuntimeException error) {
+                // The notification and alarm screen still offer actions if a device blocks the service.
+            }
             openAlarmActivity(alarmId, occurrenceDate, revision);
             scheduleNext(alarmId);
         } catch (JSONException ignored) {
@@ -141,6 +165,7 @@ final class AlarmScheduler {
             all.put(alarmId, alarm);
             writeAlarms(all);
             appendConfirmation(alarmId, occurrenceDate, revision);
+            dismiss(alarmId, revision, occurrenceDate);
             notificationManager.cancel(requestCodeFor(alarmId, false));
             notificationManager.cancel(dueRequestCodeFor(alarmId, false));
             cancelScheduledJob(alarmId);
@@ -148,6 +173,57 @@ final class AlarmScheduler {
         } catch (JSONException ignored) {
             // A stale action must not modify another version of the series.
         }
+    }
+
+    synchronized JSONArray ringingAlarms() throws JSONException {
+        JSONObject ringing = new JSONObject(preferences.getString(RINGING, "{}"));
+        JSONObject all = alarms();
+        JSONArray result = new JSONArray();
+        Iterator<String> ids = ringing.keys();
+        while (ids.hasNext()) {
+            String id = ids.next();
+            JSONObject event = ringing.optJSONObject(id);
+            JSONObject alarm = all.optJSONObject(id);
+            if (event == null || !matches(alarm, event.optInt("scheduleRevision"), event.optString("occurrenceDate"))) continue;
+            JSONObject value = new JSONObject(alarm.toString());
+            value.put("occurrenceDate", event.optString("occurrenceDate"));
+            value.put("startedAt", event.optLong("startedAt"));
+            result.put(value);
+        }
+        return result;
+    }
+
+    synchronized void dismiss(String alarmId, int revision, String occurrenceDate) {
+        try {
+            JSONObject ringing = new JSONObject(preferences.getString(RINGING, "{}"));
+            JSONObject event = ringing.optJSONObject(alarmId);
+            if (event == null || revision != event.optInt("scheduleRevision") || !occurrenceDate.equals(event.optString("occurrenceDate"))) return;
+            ringing.remove(alarmId);
+            preferences.edit().putString(RINGING, ringing.toString()).apply();
+            notificationManager.cancel(dueRequestCodeFor(alarmId, false));
+            notifyRingingChanged();
+        } catch (JSONException ignored) {
+            // A stale dismiss action must not stop a newer occurrence.
+        }
+    }
+
+    private void pruneRingingAlarms() throws JSONException {
+        JSONObject ringing = new JSONObject(preferences.getString(RINGING, "{}"));
+        JSONObject all = alarms();
+        Iterator<String> ids = ringing.keys();
+        while (ids.hasNext()) {
+            String id = ids.next();
+            JSONObject event = ringing.optJSONObject(id);
+            if (event != null && matches(all.optJSONObject(id), event.optInt("scheduleRevision"), event.optString("occurrenceDate"))) continue;
+            notificationManager.cancel(dueRequestCodeFor(id, false));
+            ids.remove();
+        }
+        preferences.edit().putString(RINGING, ringing.toString()).apply();
+        notifyRingingChanged();
+    }
+
+    private void notifyRingingChanged() {
+        context.sendBroadcast(new Intent(ACTION_RINGING_CHANGED).setPackage(context.getPackageName()));
     }
 
     synchronized JSONArray confirmations() throws JSONException {
@@ -195,27 +271,28 @@ final class AlarmScheduler {
             cancelScheduledJob(alarmId);
             return;
         }
-        Trigger next = nextTrigger(alarm, ZonedDateTime.now());
+        AlarmOccurrence.Trigger next = AlarmOccurrence.next(alarm, System.currentTimeMillis());
         if (next == null) {
             cancelScheduledJob(alarmId);
             return;
         }
 
-        scheduleReceiver(
+        if (next.notificationAt > System.currentTimeMillis()) scheduleReceiver(
             alarmId,
             requestCodeFor(alarmId, true),
             ACTION_TRIGGER,
             next.occurrenceDate,
             alarm.optInt("scheduleRevision"),
-            next.notificationAt.toInstant().toEpochMilli()
+            next.notificationAt
         );
+        else cancelScheduledReceiver(alarmId, requestCodeFor(alarmId, false), ACTION_TRIGGER);
         scheduleReceiver(
             alarmId,
             dueRequestCodeFor(alarmId, true),
             ACTION_DUE,
             next.occurrenceDate,
             alarm.optInt("scheduleRevision"),
-            next.alarmAt.toInstant().toEpochMilli()
+            next.alarmAt
         );
     }
 
@@ -223,14 +300,14 @@ final class AlarmScheduler {
         String alarmId,
         int requestCode,
         String action,
-        LocalDate occurrenceDate,
+        String occurrenceDate,
         int revision,
         long triggerAt
     ) {
         Intent intent = new Intent(context, AlarmSchedulerReceiver.class)
             .setAction(action)
             .putExtra("alarmId", alarmId)
-            .putExtra("occurrenceDate", occurrenceDate.toString())
+            .putExtra("occurrenceDate", occurrenceDate)
             .putExtra("scheduleRevision", revision);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
             context,
@@ -240,6 +317,9 @@ final class AlarmScheduler {
         );
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+        } else if (ACTION_DUE.equals(action)) {
+            PendingIntent showIntent = alarmActivityPendingIntent(alarmId, occurrenceDate, revision, requestCode);
+            alarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(triggerAt, showIntent), pendingIntent);
         } else {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
         }
@@ -279,23 +359,29 @@ final class AlarmScheduler {
         ) {
             return;
         }
+        notificationManager.notify(
+            alarmIsDue ? dueRequestCodeFor(alarm.optString("id"), true) : requestCodeFor(alarm.optString("id"), true),
+            buildNotification(alarm, occurrenceDate, revision, alarmIsDue)
+        );
+    }
+
+    int ringingNotificationId(JSONObject alarm) {
+        return dueRequestCodeFor(alarm.optString("id"), true);
+    }
+
+    Notification buildNotification(JSONObject alarm, String occurrenceDate, int revision, boolean alarmIsDue) {
         ensureChannel();
         String alarmId = alarm.optString("id");
         int requestCode = alarmIsDue
             ? dueRequestCodeFor(alarmId, true)
             : requestCodeFor(alarmId, true);
-        Intent openIntent = new Intent(context, MainActivity.class)
+        Intent openIntent = new Intent(context, alarmIsDue ? AlarmRingingActivity.class : MainActivity.class)
             .setAction(ACTION_OPEN)
             .putExtra("alarmId", alarmId)
             .putExtra("occurrenceDate", occurrenceDate)
             .putExtra("scheduleRevision", revision)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent openPendingIntent = PendingIntent.getActivity(
-            context,
-            requestCode,
-            openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
+        PendingIntent openPendingIntent = activityPendingIntent(openIntent, requestCode);
         Intent confirmIntent = new Intent(context, AlarmSchedulerReceiver.class)
             .setAction(ACTION_CONFIRM)
             .putExtra("alarmId", alarmId)
@@ -312,22 +398,51 @@ final class AlarmScheduler {
             "description",
             alarmIsDue ? "Está na hora deste lembrete." : "Seu lembrete acontece em 1 minuto."
         );
-        NotificationCompat.Builder notification = new NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(context.getApplicationInfo().icon)
+        NotificationCompat.Builder notification = new NotificationCompat.Builder(context, alarmIsDue ? ALARM_CHANNEL_ID : CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_alarm)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(alarmIsDue ? NotificationCompat.PRIORITY_MAX : NotificationCompat.PRIORITY_HIGH)
             .setCategory(alarmIsDue ? NotificationCompat.CATEGORY_ALARM : NotificationCompat.CATEGORY_REMINDER)
-            .setAutoCancel(true)
+            .setAutoCancel(!alarmIsDue)
+            .setOngoing(alarmIsDue)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openPendingIntent)
             .addAction(0, "Confirmar", confirmPendingIntent);
-        if (alarmIsDue) notification.setFullScreenIntent(openPendingIntent, true);
-        notificationManager.notify(requestCode, notification.build());
+        if (alarmIsDue) {
+            Intent dismissIntent = new Intent(confirmIntent).setAction(ACTION_DISMISS);
+            PendingIntent dismissPendingIntent = PendingIntent.getBroadcast(context, requestCode, dismissIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            notification.addAction(0, "Dispensar", dismissPendingIntent);
+            notification.setDeleteIntent(dismissPendingIntent);
+            notification.setFullScreenIntent(openPendingIntent, true);
+        }
+        return notification.build();
+    }
+
+    private PendingIntent alarmActivityPendingIntent(String alarmId, String occurrenceDate, int revision, int requestCode) {
+        Intent intent = new Intent(context, AlarmRingingActivity.class)
+            .setAction(ACTION_OPEN)
+            .putExtra("alarmId", alarmId)
+            .putExtra("occurrenceDate", occurrenceDate)
+            .putExtra("scheduleRevision", revision)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return activityPendingIntent(intent, requestCode);
+    }
+
+    private PendingIntent activityPendingIntent(Intent intent, int requestCode) {
+        ActivityOptions options = ActivityOptions.makeBasic();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            options.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+        }
+        return PendingIntent.getActivity(context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE, options.toBundle());
     }
 
     private void openAlarmActivity(String alarmId, String occurrenceDate, int revision) {
-        Intent intent = new Intent(context, MainActivity.class)
+        if (!Settings.canDrawOverlays(context)) return;
+        Intent intent = new Intent(context, AlarmRingingActivity.class)
             .setAction(ACTION_OPEN)
             .putExtra("alarmId", alarmId)
             .putExtra("occurrenceDate", occurrenceDate)
@@ -353,147 +468,24 @@ final class AlarmScheduler {
         );
         channel.setDescription("Avisos de lembretes do AgendAI");
         notificationManager.createNotificationChannel(channel);
-    }
-
-    private Trigger nextTrigger(JSONObject alarm, ZonedDateTime now) {
-        try {
-            LocalDate start = LocalDate.parse(alarm.getString("date"));
-            LocalTime time = LocalTime.parse(alarm.getString("time"));
-            ZoneId zone = ZoneId.of(alarm.optString("timeZone", ZoneId.systemDefault().getId()));
-            LocalDate end = optionalDate(alarm.optJSONObject("recurrence"), "endDate");
-            LocalDate initial = now.withZoneSameInstant(zone).toLocalDate();
-            if (initial.isBefore(start)) initial = start;
-            JSONObject recurrence = alarm.optJSONObject("recurrence");
-            String type = recurrence == null ? "none" : recurrence.optString("type", "none");
-
-            if ("none".equals(type)) return triggerFor(alarm, start, time, zone, now, end);
-            if ("daily".equals(type)) {
-                LocalDate candidate = initial;
-                while (!afterEnd(candidate, end)) {
-                    Trigger trigger = triggerFor(alarm, candidate, time, zone, now, end);
-                    if (trigger != null) return trigger;
-                    candidate = candidate.plusDays(1);
-                }
-                return null;
-            }
-            if ("weekly".equals(type)) {
-                LocalDate candidate = initial;
-                while (!afterEnd(candidate, end)) {
-                    if (matchesWeeklyDay(recurrence, candidate, start)) {
-                        Trigger trigger = triggerFor(alarm, candidate, time, zone, now, end);
-                        if (trigger != null) return trigger;
-                    }
-                    candidate = candidate.plusDays(1);
-                }
-                return null;
-            }
-            if ("monthly".equals(type)) {
-                int day = start.getDayOfMonth();
-                YearMonth month = YearMonth.from(initial);
-                while (true) {
-                    if (day <= month.lengthOfMonth()) {
-                        LocalDate candidate = month.atDay(day);
-                        if (!candidate.isBefore(start) && !afterEnd(candidate, end)) {
-                            Trigger trigger = triggerFor(alarm, candidate, time, zone, now, end);
-                            if (trigger != null) return trigger;
-                        }
-                        if (afterEnd(candidate, end)) return null;
-                    }
-                    month = month.plusMonths(1);
-                }
-            }
-            if ("yearly".equals(type)) {
-                int year = Math.max(start.getYear(), initial.getYear());
-                while (true) {
-                    try {
-                        LocalDate candidate = LocalDate.of(year, start.getMonth(), start.getDayOfMonth());
-                        if (afterEnd(candidate, end)) return null;
-                        Trigger trigger = triggerFor(alarm, candidate, time, zone, now, end);
-                        if (trigger != null) return trigger;
-                    } catch (RuntimeException ignored) {
-                        // February 29 only exists in leap years.
-                    }
-                    year += 1;
-                }
-            }
-        } catch (Exception ignored) {
-            return null;
-        }
-        return null;
-    }
-
-    private Trigger triggerFor(
-        JSONObject alarm,
-        LocalDate occurrenceDate,
-        LocalTime time,
-        ZoneId zone,
-        ZonedDateTime now,
-        LocalDate end
-    ) {
-        if (occurrenceDate.isBefore(LocalDate.parse(alarm.optString("date"))) || afterEnd(occurrenceDate, end)) return null;
-        if (hasException(alarm, occurrenceDate)) return null;
-        ZonedDateTime alarmAt = occurrenceDate.atTime(time).atZone(zone);
-        ZonedDateTime notificationAt = alarmAt.minusMinutes(1);
-        if (!notificationAt.isAfter(now)) return null;
-        return new Trigger(occurrenceDate, notificationAt, alarmAt);
+        NotificationChannel alarmChannel = new NotificationChannel(ALARM_CHANNEL_ID, "Alarmes", NotificationManager.IMPORTANCE_HIGH);
+        alarmChannel.setDescription("Alarmes em andamento do AgendAI");
+        // The foreground service owns the continuous alarm sound and vibration.
+        alarmChannel.setSound(null, null);
+        alarmChannel.enableVibration(false);
+        alarmChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        notificationManager.createNotificationChannel(alarmChannel);
     }
 
     private boolean matches(JSONObject alarm, int revision, String occurrenceDate) {
         if (!isActive(alarm) || alarm.optInt("scheduleRevision") != revision) return false;
-        try {
-            LocalDate date = LocalDate.parse(occurrenceDate);
-            return isOccurrence(alarm, date) && !hasException(alarm, date);
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private boolean isOccurrence(JSONObject alarm, LocalDate date) {
-        try {
-            LocalDate start = LocalDate.parse(alarm.getString("date"));
-            JSONObject recurrence = alarm.optJSONObject("recurrence");
-            String type = recurrence == null ? "none" : recurrence.optString("type", "none");
-            LocalDate end = optionalDate(recurrence, "endDate");
-            if ("none".equals(type)) return start.equals(date);
-            if (date.isBefore(start) || afterEnd(date, end)) return false;
-            if ("daily".equals(type)) return true;
-            if ("weekly".equals(type)) return matchesWeeklyDay(recurrence, date, start);
-            if ("monthly".equals(type)) return date.getDayOfMonth() == start.getDayOfMonth();
-            return date.getMonth() == start.getMonth() && date.getDayOfMonth() == start.getDayOfMonth();
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private boolean matchesWeeklyDay(JSONObject recurrence, LocalDate date, LocalDate start) {
-        JSONArray days = recurrence == null ? null : recurrence.optJSONArray("daysOfWeek");
-        int weekday = date.getDayOfWeek().getValue() % 7;
-        if (days == null || days.length() == 0) {
-            return weekday == start.getDayOfWeek().getValue() % 7;
-        }
-        for (int index = 0; index < days.length(); index += 1) {
-            if (days.optInt(index, -1) == weekday) return true;
-        }
-        return false;
+        JSONObject exceptions = alarm.optJSONObject("exceptions");
+        return AlarmOccurrence.isOccurrence(alarm, occurrenceDate) &&
+            (exceptions == null || !exceptions.has(occurrenceDate));
     }
 
     private boolean isActive(JSONObject alarm) {
         return alarm != null && "pending".equals(alarm.optString("status"));
-    }
-
-    private boolean hasException(JSONObject alarm, LocalDate date) {
-        JSONObject exceptions = alarm.optJSONObject("exceptions");
-        return exceptions != null && exceptions.has(date.toString());
-    }
-
-    private boolean afterEnd(LocalDate candidate, LocalDate end) {
-        return end != null && candidate.isAfter(end);
-    }
-
-    private LocalDate optionalDate(JSONObject object, String key) {
-        if (object == null || !object.has(key) || object.isNull(key)) return null;
-        String value = object.optString(key);
-        return value.isEmpty() ? null : LocalDate.parse(value);
     }
 
     private void appendConfirmation(String alarmId, String occurrenceDate, int revision) throws JSONException {
@@ -560,15 +552,4 @@ final class AlarmScheduler {
         return requestCodeFor(alarmId + ":due", create);
     }
 
-    private static final class Trigger {
-        final LocalDate occurrenceDate;
-        final ZonedDateTime notificationAt;
-        final ZonedDateTime alarmAt;
-
-        Trigger(LocalDate occurrenceDate, ZonedDateTime notificationAt, ZonedDateTime alarmAt) {
-            this.occurrenceDate = occurrenceDate;
-            this.notificationAt = notificationAt;
-            this.alarmAt = alarmAt;
-        }
-    }
 }

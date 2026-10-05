@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/alarm_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/alarm_background"
+    android:fillViewport="true"
+    android:padding="24dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/alarm_now"
+            android:textColor="@color/alarm_accent"
+            android:textSize="18sp" />
+        <TextView
+            android:id="@+id/alarm_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:textColor="@color/alarm_foreground"
+            android:textSize="64sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/alarm_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="center"
+            android:textColor="@color/alarm_foreground"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/alarm_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:textColor="@color/alarm_muted"
+            android:textSize="18sp" />
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/alarm_confirm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:minHeight="56dp"
+            android:text="@string/alarm_complete"
+            android:textAllCaps="false"
+            android:textSize="18sp"
+            android:textColor="@color/alarm_primary_foreground"
+            android:backgroundTint="@color/alarm_primary" />
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/alarm_dismiss"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:minHeight="56dp"
+            android:text="@string/alarm_dismiss"
+            android:textAllCaps="false"
+            android:textSize="18sp"
+            android:textColor="@color/alarm_foreground"
+            android:backgroundTint="@color/alarm_surface" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="@string/alarm_dismiss_hint"
+            android:textColor="@color/alarm_muted"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>

@@ -11,6 +11,10 @@ public class AlarmSchedulerBootReceiver extends BroadcastReceiver {
         if (
             !Intent.ACTION_BOOT_COMPLETED.equals(action) &&
             !Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action) &&
+            !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action) &&
+            !Intent.ACTION_TIME_CHANGED.equals(action) &&
+            !Intent.ACTION_TIMEZONE_CHANGED.equals(action) &&
+            !android.app.AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED.equals(action) &&
             !"android.intent.action.QUICKBOOT_POWERON".equals(action)
         ) {
             return;

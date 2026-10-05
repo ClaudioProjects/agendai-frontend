@@ -1,5 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="alarm_now">Está na hora do seu lembrete</string>
+    <string name="alarm_default_title">Lembrete</string>
+    <string name="alarm_complete">Concluir lembrete</string>
+    <string name="alarm_dismiss">Dispensar alarme</string>
+    <string name="alarm_dismiss_hint">Dispensar silencia o alarme e mantém o lembrete pendente.</string>
     <string name="app_name">AgendAI</string>
     <string name="title_activity_main">AgendAI</string>
     <string name="package_name">com.claudiodev.agendai</string>

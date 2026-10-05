@@ -1,5 +1,22 @@
 # AgendAI Frontend
 
+## Lembretes e alarmes no Android
+
+- Toque na hora ou nos minutos para digitar com o teclado numérico. A rolagem continua disponível; horários válidos vão de `00:00` a `23:59`.
+- Na primeira abertura, o app solicita notificações e microfone e apresenta, em sequência, os acessos a alarmes exatos, tela cheia e exibição sobre outros apps. Cada tela de acesso especial só é seguida pela próxima após o retorno ao app. As escolhas ficam salvas; permissões recusadas podem ser habilitadas em **Configurações → Permissões**.
+- No horário do lembrete, uma tela nativa de alarme mostra o título e a descrição, com som de alarme e vibração contínuos. **Concluir lembrete** conclui a ocorrência; **Dispensar alarme** silencia e mantém o lembrete pendente. O som para automaticamente após dez minutos.
+- A tela cheia permite mostrar o alarme com o celular bloqueado; a exibição sobre outros apps permite abri-lo durante o uso de outro aplicativo. Sem esses acessos, o Android pode limitar a apresentação à notificação. O som respeita o volume de alarmes e as configurações do sistema.
+- O agendamento permanece nativo com o app fechado e é restaurado após reinicialização, atualização do app ou mudança do relógio/fuso. Alarmes criados ou reconciliados no último minuto continuam sendo agendados.
+
+Validação de entrega e recorrência em um emulador/dispositivo Android:
+
+```powershell
+cd android
+./gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.claudiodev.agendai.AlarmDeliveryTest,com.claudiodev.agendai.AlarmOccurrenceTest'
+```
+
+O teste `StartupPermissionsTest` valida o primeiro início em uma instalação nova, com os acessos especiais inicialmente desativados.
+
 ## Integração com IA
 
 Copie `.env.example` para `.env` e configure:

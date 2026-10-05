@@ -19,6 +19,8 @@ public class AlarmSchedulerReceiver extends BroadcastReceiver {
             scheduler.openDueAlarm(alarmId, revision, occurrenceDate);
         } else if (AlarmScheduler.ACTION_CONFIRM.equals(intent.getAction())) {
             scheduler.confirm(alarmId, revision, occurrenceDate);
+        } else if (AlarmScheduler.ACTION_DISMISS.equals(intent.getAction())) {
+            scheduler.dismiss(alarmId, revision, occurrenceDate);
         }
     }
 }
