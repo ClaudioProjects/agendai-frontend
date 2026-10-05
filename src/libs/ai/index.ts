@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { EVENT_TYPES, RECURRENCE_TYPES, REMINDER_TYPES } from "../alarm";
+import { prepareAudioForInterpretation } from "./audio";
+import { AiApiError } from "./errors";
+export { AiApiError } from "./errors";
 
 const alarmDraftSchema = z.object({
   id: z.string().nullable(),
@@ -37,36 +40,6 @@ type TimeContext = {
   timezone: string;
   locale: string;
 };
-
-const audioExtensions: Record<string, string> = {
-  "audio/aac": "aac",
-  "audio/mp4": "mp4",
-  "audio/mpeg": "mp3",
-  "audio/ogg": "ogg",
-  "audio/wav": "wav",
-  "audio/x-wav": "wav",
-  "audio/webm": "webm",
-};
-
-const audioMimeAliases: Record<string, string> = {
-  // Android WebView can label an audio-only WebM MediaRecorder stream as video.
-  "video/webm": "audio/webm",
-  "video/mp4": "audio/mp4",
-};
-
-function normalizeAudioMimeType(value: string) {
-  const mimeType = value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-  return audioMimeAliases[mimeType] ?? mimeType;
-}
-
-export class AiApiError extends Error {
-  readonly code: string;
-
-  constructor(code: string, message: string) {
-    super(message);
-    this.code = code;
-  }
-}
 
 function browserTimeContext(): TimeContext {
   const date = new Date();
@@ -174,20 +147,10 @@ export const aiInterpreter: AiInterpreter = {
     return parseResponse(response);
   },
   async interpretAudio(audio) {
-    const mimeType = normalizeAudioMimeType(audio.type);
-    const extension = audioExtensions[mimeType];
-    if (!extension)
-      throw new AiApiError(
-        "UNSUPPORTED_AUDIO",
-        "O formato de áudio gerado pelo dispositivo não é suportado.",
-      );
     const context = browserTimeContext();
+    const prepared = await prepareAudioForInterpretation(audio);
     const form = new FormData();
-    form.set(
-      "audio",
-      new Blob([audio], { type: mimeType }),
-      `lembrete.${extension}`,
-    );
+    form.set("audio", prepared.audio, prepared.fileName);
     form.set("currentDateTime", context.currentDateTime);
     form.set("timezone", context.timezone);
     form.set("locale", context.locale);
