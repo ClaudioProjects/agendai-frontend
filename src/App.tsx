@@ -24,6 +24,7 @@ import {
 } from "./libs/alarm";
 import { getAlarmStorage } from "./libs/storage";
 import { notificationScheduler } from "./libs/notifications";
+import { requestStartupPermissions } from "./libs/permissions";
 import { AppShell } from "./components/layout/AppShell";
 import { HomePage } from "./pages/HomePage";
 import { WeekPage } from "./pages/WeekPage";
@@ -138,20 +139,21 @@ function AppProviders({ children }: PropsWithChildren) {
 
     const requestNotificationPermissionOnStartup = async () => {
       try {
-        let permission = await notificationScheduler.checkPermission();
-        if (permission === "default") {
-          permission = await notificationScheduler.requestPermission();
+        const permissions = await requestStartupPermissions();
+        if (!permissions) {
+          const permission = await notificationScheduler.checkPermission();
+          if (permission === "default") {
+            await notificationScheduler.requestPermission();
+          }
         }
-
-        await notificationScheduler.requestExactAlarmPermission();
-        await notificationScheduler.requestFullScreenIntentPermission();
-        if (permission !== "granted") return;
 
         // The first reconciliation can run before the native prompt is answered.
         // Run it again after permission is granted so existing alarms are scheduled.
         await notificationScheduler.reconcile(await storage.list());
-      } catch {
-        // A permission prompt must never prevent the agenda from loading.
+      } catch (permissionError) {
+        setError(
+          `Não foi possível configurar as permissões: ${errorMessage(permissionError)}`,
+        );
       }
     };
 

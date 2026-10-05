@@ -17,7 +17,23 @@ export type NativeAlarmOpen = {
   scheduleRevision: number;
 };
 
+export type AppPermission =
+  | "notifications"
+  | "microphone"
+  | "exactAlarms"
+  | "fullScreenIntent"
+  | "overlay";
+
+export type AppPermissions = Record<AppPermission, boolean> & {
+  startupComplete: boolean;
+};
+
 type AlarmSchedulerPlugin = {
+  checkAppPermissions(): Promise<AppPermissions>;
+  requestStartupPermissions(): Promise<AppPermissions>;
+  requestAppPermission(options: {
+    permission: AppPermission;
+  }): Promise<AppPermissions>;
   upsert(options: { alarm: Alarm }): Promise<void>;
   remove(options: { alarmId: string }): Promise<void>;
   reconcile(options: { alarms: Alarm[] }): Promise<void>;
@@ -40,6 +56,15 @@ function isAndroid() {
 }
 
 export const alarmScheduler = {
+  async checkAppPermissions() {
+    return nativePlugin.checkAppPermissions();
+  },
+  async requestStartupPermissions() {
+    return nativePlugin.requestStartupPermissions();
+  },
+  async requestAppPermission(permission: AppPermission) {
+    return nativePlugin.requestAppPermission({ permission });
+  },
   async upsert(alarm: Alarm) {
     if (!isAndroid()) return;
     await nativePlugin.upsert({ alarm });

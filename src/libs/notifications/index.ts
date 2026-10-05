@@ -96,10 +96,7 @@ const nativeScheduler: NotificationScheduler = {
   },
   async requestExactAlarmPermission() {
     if (Capacitor.getPlatform() !== "android") return;
-    const setting = await LocalNotifications.checkExactNotificationSetting();
-    if (setting.exact_alarm !== "granted") {
-      await LocalNotifications.changeExactNotificationSetting();
-    }
+    await alarmScheduler.requestAppPermission("exactAlarms");
   },
   checkFullScreenIntentPermission: () =>
     alarmScheduler.checkFullScreenIntentPermission(),

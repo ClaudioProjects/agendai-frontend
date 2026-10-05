@@ -6,6 +6,44 @@ import {
   type NotificationPermission,
 } from "../libs/notifications";
 import { cn } from "../libs/cn";
+import {
+  checkAppPermissions,
+  requestAppPermission,
+  type AppPermission,
+  type AppPermissions,
+} from "../libs/permissions";
+
+const appPermissionRows: Array<{
+  permission: AppPermission;
+  title: string;
+  description: string;
+}> = [
+  {
+    permission: "notifications",
+    title: "Notificações",
+    description: "Exibir avisos e controles dos alarmes",
+  },
+  {
+    permission: "microphone",
+    title: "Microfone",
+    description: "Criar lembretes por voz na tela IA",
+  },
+  {
+    permission: "exactAlarms",
+    title: "Alarmes no horário exato",
+    description: "Tocar no horário escolhido, mesmo com a tela apagada",
+  },
+  {
+    permission: "fullScreenIntent",
+    title: "Alarme na tela bloqueada",
+    description: "Exibir a tela do alarme quando o celular estiver bloqueado",
+  },
+  {
+    permission: "overlay",
+    title: "Alarme sobre outros apps",
+    description: "Abrir o alarme enquanto você usa outro aplicativo",
+  },
+];
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -16,6 +54,31 @@ export function SettingsPage() {
     boolean | null
   >(null);
   const [fullScreenIntentError, setFullScreenIntentError] = useState("");
+  const [appPermissions, setAppPermissions] = useState<AppPermissions>();
+  const [appPermissionError, setAppPermissionError] = useState("");
+  const [requestingPermission, setRequestingPermission] = useState(false);
+
+  const refreshAppPermissions = async () => {
+    try {
+      setAppPermissions(await checkAppPermissions());
+    } catch {
+      setAppPermissionError("Não foi possível consultar as permissões do app.");
+    }
+  };
+
+  const requestAccess = async (permission: AppPermission) => {
+    setRequestingPermission(true);
+    setAppPermissionError("");
+    try {
+      setAppPermissions(await requestAppPermission(permission));
+    } catch {
+      setAppPermissionError(
+        "Não foi possível abrir a configuração desta permissão.",
+      );
+    } finally {
+      setRequestingPermission(false);
+    }
+  };
 
   const refreshPermission = async () => {
     try {
@@ -46,12 +109,16 @@ export function SettingsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshPermission();
     void refreshFullScreenIntentPermission();
+    void refreshAppPermissions();
   }, []);
 
   useEffect(() => {
     const refreshOnResume = () => {
-      if (document.visibilityState === "visible")
+      if (document.visibilityState === "visible") {
+        void refreshPermission();
         void refreshFullScreenIntentPermission();
+        void refreshAppPermissions();
+      }
     };
     document.addEventListener("visibilitychange", refreshOnResume);
     return () =>
@@ -137,53 +204,107 @@ export function SettingsPage() {
         </div>
       </section>
       <section className="my-[25px]">
-        <h2 className={sectionTitle}>Notificações</h2>
-        <button className={row} onClick={() => void request()}>
-          <span className="grid size-8 place-items-center rounded-[11px] bg-muted-surface text-primary">
-            <Icon name="bell" />
-          </span>
-          <span className="grid flex-1 gap-1">
-            <strong className="text-[13px]">Notificações locais</strong>
-            <small className="text-[11px] text-muted">
-              {permission === "granted"
-                ? "Permissão concedida"
-                : permission === "denied"
-                  ? "Bloqueadas: habilite nas configurações do sistema"
-                  : "Toque para permitir lembretes"}
-            </small>
-          </span>
-          <span className="text-muted">
-            <Icon name="chevron-right" size={18} />
-          </span>
-        </button>
-        {permissionError && (
-          <p className="mt-2 text-xs text-danger" role="alert">
-            {permissionError}
-          </p>
-        )}
-        <button
-          className="mt-2 flex w-full items-center gap-3 rounded-[17px] border border-border bg-surface p-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          onClick={() => void requestFullScreenIntent()}
-        >
-          <span className="grid size-8 place-items-center rounded-[11px] bg-muted-surface text-primary">
-            <Icon name="bell" />
-          </span>
-          <span className="grid flex-1 gap-1">
-            <strong className="text-[13px]">Abrir alarme na hora</strong>
-            <small className="text-[11px] text-muted">
-              {fullScreenIntentPermission === true
-                ? "A tela de conclusão abre no horário do alarme"
-                : "Toque para permitir a abertura da tela do alarme"}
-            </small>
-          </span>
-          <span className="text-muted">
-            <Icon name="chevron-right" size={18} />
-          </span>
-        </button>
-        {fullScreenIntentError && (
-          <p className="mt-2 text-xs text-danger" role="alert">
-            {fullScreenIntentError}
-          </p>
+        <h2 className={sectionTitle}>Permissões</h2>
+        {appPermissions ? (
+          <div className="grid gap-2">
+            {appPermissionRows.map(
+              ({ permission: access, title, description }) => (
+                <button
+                  key={access}
+                  className={row}
+                  disabled={requestingPermission}
+                  onClick={() => void requestAccess(access)}
+                >
+                  <span className="grid size-8 place-items-center rounded-[11px] bg-muted-surface text-primary">
+                    <Icon
+                      name={
+                        access === "microphone"
+                          ? "mic"
+                          : access === "exactAlarms"
+                            ? "clock"
+                            : "bell"
+                      }
+                    />
+                  </span>
+                  <span className="grid flex-1 gap-1">
+                    <strong className="text-[13px]">{title}</strong>
+                    <small className="text-[11px] text-muted">
+                      {description}
+                    </small>
+                    <small
+                      className={cn(
+                        "text-[11px]",
+                        appPermissions[access] ? "text-success" : "text-danger",
+                      )}
+                    >
+                      {appPermissions[access]
+                        ? "Permissão concedida"
+                        : "Toque para permitir"}
+                    </small>
+                  </span>
+                  <Icon
+                    name={appPermissions[access] ? "check" : "chevron-right"}
+                    size={18}
+                  />
+                </button>
+              ),
+            )}
+            {appPermissionError && (
+              <p className="mt-2 text-xs text-danger" role="alert">
+                {appPermissionError}
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            <button className={row} onClick={() => void request()}>
+              <span className="grid size-8 place-items-center rounded-[11px] bg-muted-surface text-primary">
+                <Icon name="bell" />
+              </span>
+              <span className="grid flex-1 gap-1">
+                <strong className="text-[13px]">Notificações locais</strong>
+                <small className="text-[11px] text-muted">
+                  {permission === "granted"
+                    ? "Permissão concedida"
+                    : permission === "denied"
+                      ? "Bloqueadas: habilite nas configurações do sistema"
+                      : "Toque para permitir lembretes"}
+                </small>
+              </span>
+              <span className="text-muted">
+                <Icon name="chevron-right" size={18} />
+              </span>
+            </button>
+            {permissionError && (
+              <p className="mt-2 text-xs text-danger" role="alert">
+                {permissionError}
+              </p>
+            )}
+            <button
+              className="mt-2 flex w-full items-center gap-3 rounded-[17px] border border-border bg-surface p-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={() => void requestFullScreenIntent()}
+            >
+              <span className="grid size-8 place-items-center rounded-[11px] bg-muted-surface text-primary">
+                <Icon name="bell" />
+              </span>
+              <span className="grid flex-1 gap-1">
+                <strong className="text-[13px]">Abrir alarme na hora</strong>
+                <small className="text-[11px] text-muted">
+                  {fullScreenIntentPermission === true
+                    ? "A tela de conclusão abre no horário do alarme"
+                    : "Toque para permitir a abertura da tela do alarme"}
+                </small>
+              </span>
+              <span className="text-muted">
+                <Icon name="chevron-right" size={18} />
+              </span>
+            </button>
+            {fullScreenIntentError && (
+              <p className="mt-2 text-xs text-danger" role="alert">
+                {fullScreenIntentError}
+              </p>
+            )}
+          </>
         )}
       </section>
       <section className="my-[25px]">
