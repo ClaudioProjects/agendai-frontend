@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type KeyboardEvent,
   type UIEvent,
 } from "react";
@@ -61,6 +62,10 @@ function WheelPicker({
   onChange: (value: string) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const editingRef = useRef(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
   const lastValue = useRef<string | undefined>(undefined);
   const settleTimer = useRef<number | undefined>(undefined);
   const repeatedValues = Array.from(
@@ -100,6 +105,7 @@ function WheelPicker({
   };
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (editingRef.current) return;
     const index = Math.round(event.currentTarget.scrollTop / ROW_HEIGHT);
     const nextValue = values[modulo(index, values.length)];
     if (nextValue !== lastValue.current) {
@@ -124,15 +130,45 @@ function WheelPicker({
     }, 120);
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const beginEditing = (index: number) => {
+    const nextValue = values[modulo(index, values.length)];
+    if (settleTimer.current) window.clearTimeout(settleTimer.current);
+    editingRef.current = true;
+    setEditing(true);
+    setDraft(nextValue);
+    selectIndex(index, "auto");
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  };
+
+  const finishEditing = () => {
+    const nextValue = draft.padStart(2, "0");
+    if (draft && values.includes(nextValue)) {
+      lastValue.current = nextValue;
+      onChange(nextValue);
+    }
+    editingRef.current = false;
+    setEditing(false);
+    scrollToValue(lastValue.current ?? value);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const currentIndex = values.indexOf(value);
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
-      selectIndex(currentIndex + (event.key === "ArrowUp" ? -1 : 1));
+      const nextIndex = currentIndex + (event.key === "ArrowUp" ? -1 : 1);
+      setDraft(values[modulo(nextIndex, values.length)]);
+      selectIndex(nextIndex, "auto");
     }
     if (event.key === "Home" || event.key === "End") {
       event.preventDefault();
-      selectIndex(event.key === "Home" ? 0 : values.length - 1);
+      const nextIndex = event.key === "Home" ? 0 : values.length - 1;
+      setDraft(values[nextIndex]);
+      selectIndex(nextIndex, "auto");
+    }
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      event.currentTarget.blur();
     }
   };
 
@@ -146,14 +182,8 @@ function WheelPicker({
           ref={viewportRef}
           className="h-[132px] snap-y snap-mandatory overflow-y-auto py-11 text-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={handleScroll}
-          onKeyDown={handleKeyDown}
-          tabIndex={0}
-          role="spinbutton"
-          aria-label={label}
-          aria-valuemin={Number(values[0])}
-          aria-valuemax={Number(values.at(-1))}
-          aria-valuenow={Number(value)}
-          aria-valuetext={value}
+          onPointerDown={() => inputRef.current?.blur()}
+          onWheel={() => inputRef.current?.blur()}
         >
           {repeatedValues.map((item, index) => (
             <button
@@ -167,12 +197,42 @@ function WheelPicker({
               type="button"
               tabIndex={-1}
               aria-hidden="true"
-              onClick={() => selectIndex(index)}
+              onClick={() => beginEditing(index)}
             >
               {item}
             </button>
           ))}
         </div>
+        <input
+          ref={inputRef}
+          className={cn(
+            "absolute top-11 left-0 h-11 w-full rounded-lg border-0 bg-transparent p-0 text-center text-[25px] leading-11 font-bold text-foreground outline-0 focus:bg-surface focus:ring-2 focus:ring-accent",
+            !editing && "pointer-events-none opacity-0",
+          )}
+          type="text"
+          inputMode="numeric"
+          enterKeyHint="done"
+          autoComplete="off"
+          maxLength={2}
+          role="spinbutton"
+          aria-label={label}
+          aria-valuemin={Number(values[0])}
+          aria-valuemax={Number(values.at(-1))}
+          aria-valuenow={Number(value)}
+          aria-valuetext={value}
+          aria-invalid={editing && !values.includes(draft.padStart(2, "0"))}
+          value={editing ? draft : value}
+          onFocus={(event) => {
+            if (!editingRef.current) beginEditing(values.indexOf(value));
+            event.currentTarget.select();
+          }}
+          onChange={(event) => {
+            const nextDraft = event.target.value.replace(/\D/g, "");
+            setDraft(nextDraft);
+          }}
+          onKeyDown={handleKeyDown}
+          onBlur={finishEditing}
+        />
       </div>
     </div>
   );

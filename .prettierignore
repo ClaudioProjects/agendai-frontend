@@ -1,0 +1,5 @@
+dist/
+android/**/build/
+android/.gradle/
+android/app/src/main/assets/
+android/capacitor-cordova-android-plugins/
