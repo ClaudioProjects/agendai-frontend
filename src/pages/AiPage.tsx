@@ -11,6 +11,7 @@ import {
 import { blankAlarm, validateAlarmInput } from "../libs/alarm-form";
 import { AiApiError, aiInterpreter, type AlarmDraft } from "../libs/ai";
 import { cn } from "../libs/cn";
+import { AiDraftLoading } from "./ai/AiDraftLoading";
 
 type PageState =
   | "idle"
@@ -782,22 +783,7 @@ export function AiPage() {
   }
 
   if (state === "processing") {
-    return (
-      <div className="flex min-h-[55svh] flex-col items-center justify-center px-0.5 text-center">
-        <div className="grid size-[86px] place-items-center rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
-          <Icon name="spark" size={36} />
-        </div>
-        <h1 className="m-0 mt-7 text-[clamp(30px,9vw,42px)] leading-[1.08] font-bold tracking-[-0.045em]">
-          Entendendo seu pedido
-        </h1>
-        <p className="mt-3 max-w-[280px] text-sm leading-relaxed text-muted">
-          A IA está organizando os detalhes dos seus lembretes.
-        </p>
-        <div className="mt-5 h-1 w-12 overflow-hidden rounded-full bg-border">
-          <div className="h-full w-1/2 animate-pulse rounded-full bg-accent" />
-        </div>
-      </div>
-    );
+    return <AiDraftLoading inputMode={inputMode} />;
   }
 
   return (

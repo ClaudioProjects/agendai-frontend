@@ -138,7 +138,78 @@
   animation: alarm-card-flash 1.2s ease-in-out 2;
 }
 
+@keyframes ai-loading-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ai-loading-breathe {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+
+@keyframes ai-loading-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes ai-loading-message {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai-loading-orbit {
+  animation: ai-loading-orbit 2.4s linear infinite;
+}
+
+.ai-loading-halo,
+.ai-loading-core {
+  animation: ai-loading-breathe 2.4s ease-in-out infinite;
+}
+
+.ai-loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--background) 65%, transparent),
+    transparent
+  );
+  animation: ai-loading-shimmer 2s ease-in-out infinite;
+}
+
+.ai-loading-message {
+  animation: ai-loading-message 0.25s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ai-loading-orbit,
+  .ai-loading-halo,
+  .ai-loading-core,
+  .ai-loading-message {
+    animation: none;
+  }
+
+  .ai-loading-shimmer {
+    display: none;
+  }
   .alarm-card--flash {
     animation: none;
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
