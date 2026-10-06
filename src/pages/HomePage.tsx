@@ -9,7 +9,7 @@ import {
   isAlarmForDate,
   localDateKey,
 } from "../libs/alarm";
-import { useAlarms } from "../App";
+import { useAgendaView, useAlarms } from "../App";
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
@@ -18,9 +18,8 @@ export function HomePage() {
     navigate = useNavigate(),
     location = useLocation(),
     today = localDateKey(new Date());
-  const [selectedDate, setSelectedDate] = useState(today),
-    [monthOffset, setMonthOffset] = useState(0),
-    [flashAlarmIds, setFlashAlarmIds] = useState<string[]>([]),
+  const { selectedDate, setSelectedDate, monthOffset, setMonthOffset } = useAgendaView();
+  const [flashAlarmIds, setFlashAlarmIds] = useState<string[]>([]),
     [saveToast, setSaveToast] = useState<string | null>(null);
   useEffect(() => {
     const state = location.state as {

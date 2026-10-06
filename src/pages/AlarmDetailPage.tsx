@@ -10,7 +10,7 @@ import {
   isAlarmOccurrence,
 } from "../libs/alarm";
 import { useAlarms } from "../App";
-import { useBackNavigation } from "../libs/back-navigation";
+import { useBackNavigation, useReturnFromAlarm } from "../libs/back-navigation";
 import "./AlarmDetailPage.css";
 
 export function AlarmDetailPage() {
@@ -19,6 +19,7 @@ export function AlarmDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const goBack = useBackNavigation();
+  const returnFromAlarm = useReturnFromAlarm();
   const { alarms, loading, removeAlarm, toggleComplete, updateAlarm } =
     useAlarms();
   const alarm = alarms.find((item) => item.id === id);
@@ -46,8 +47,8 @@ export function AlarmDetailPage() {
         <h2 className="m-0 text-[19px] tracking-[-0.03em] text-foreground">
           Lembrete não encontrado
         </h2>
-        <button className="alarm-detail__fallback-button" onClick={() => navigate("/agenda")}>
-          Voltar para agenda
+        <button className="alarm-detail__fallback-button" onClick={() => void returnFromAlarm()}>
+          Voltar
         </button>
       </main>
     );
@@ -102,7 +103,7 @@ export function AlarmDetailPage() {
           exceptions: { ...alarm.exceptions, [occurrenceDate]: "cancelled" },
         });
       }
-      navigate("/agenda");
+      await returnFromAlarm();
     });
 
   const rows = [
@@ -178,7 +179,7 @@ export function AlarmDetailPage() {
             </button>
             <button className="alarm-detail__menu-delete" onClick={() => void runAction(async () => {
               await removeAlarm(alarm.id);
-              navigate("/agenda");
+              await returnFromAlarm();
             })}>
               <Icon name="trash" size={17} />
               {alarm.recurrence.type === "none" ? "Excluir lembrete" : "Excluir série"}
@@ -188,7 +189,7 @@ export function AlarmDetailPage() {
         <div className="alarm-detail__content">
           <section
             className="alarm-detail__hero"
-            style={{ "--event-color": alarm.eventColor || (alarm.eventType === "DEFAULT" ? "#ffcb66" : meta.color) } as CSSProperties}
+            style={{ "--event-color": alarm.eventColor || (alarm.eventType === "DEFAULT" ? "var(--detail-default-color)" : meta.color) } as CSSProperties}
             aria-labelledby="alarm-title"
           >
             <div className="alarm-detail__category-icon" aria-hidden="true">{meta.icon}</div>

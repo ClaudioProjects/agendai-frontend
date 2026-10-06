@@ -77,6 +77,7 @@ export function CalendarStrip({
                 key < today && !selected && "opacity-[0.52]",
               )}
               onClick={() => onChange(key)}
+              aria-pressed={selected}
               aria-label={`${weekdayLabels[index]} ${date.getDate()}${count ? `, ${count} compromisso${count > 1 ? "s" : ""}` : ""}`}
             >
               <span>{date.getDate()}</span>

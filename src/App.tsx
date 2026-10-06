@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +20,7 @@ import {
 import {
   completionForOccurrence,
   isAlarmOccurrence,
+  localDateKey,
   type Alarm,
   type AlarmInput,
 } from "./libs/alarm";
@@ -55,6 +57,13 @@ type AlarmContextValue = {
 type ThemeContextValue = { theme: Theme; setTheme: (theme: Theme) => void };
 const AlarmContext = createContext<AlarmContextValue | null>(null);
 const ThemeContext = createContext<ThemeContextValue | null>(null);
+type AgendaViewContextValue = {
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
+  monthOffset: number;
+  setMonthOffset: (offset: number) => void;
+};
+const AgendaViewContext = createContext<AgendaViewContextValue | null>(null);
 const storage = getAlarmStorage();
 
 async function applyNativeConfirmations() {
@@ -88,6 +97,12 @@ export function useTheme() {
   return value;
 }
 
+export function useAgendaView() {
+  const value = useContext(AgendaViewContext);
+  if (!value) throw new Error("useAgendaView must be used inside AppProviders");
+  return value;
+}
+
 function errorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
@@ -95,6 +110,9 @@ function errorMessage(error: unknown) {
 }
 
 function AppProviders({ children }: PropsWithChildren) {
+  // Keep the viewed day and week when the agenda route unmounts for editing.
+  const [selectedDate, setSelectedDate] = useState(() => localDateKey(new Date()));
+  const [monthOffset, setMonthOffset] = useState(0);
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -287,7 +305,9 @@ function AppProviders({ children }: PropsWithChildren) {
   return (
     <ThemeContext.Provider value={{ theme, setTheme: setThemeState }}>
       <AlarmContext.Provider value={alarmValue}>
-        {children}
+        <AgendaViewContext.Provider value={{ selectedDate, setSelectedDate, monthOffset, setMonthOffset }}>
+          {children}
+        </AgendaViewContext.Provider>
       </AlarmContext.Provider>
     </ThemeContext.Provider>
   );
@@ -365,6 +385,22 @@ function PersistentPrimaryPages() {
       <div hidden={activePage !== "settings"}>
         <SettingsPage />
       </div>
+    </>
+  );
+}
+
+function PersistentAppLayout() {
+  const location = useLocation();
+  const activePage = persistentPageFor(location.pathname);
+  useLayoutEffect(() => {
+    if (activePage) backNavigation.restoreScroll();
+  }, [activePage, location.key]);
+
+  return (
+    <>
+      <div hidden={!activePage}>
+        <AppShell><PersistentPrimaryPages /></AppShell>
+      </div>
       {!activePage && <Outlet />}
     </>
   );
@@ -373,29 +409,27 @@ function PersistentPrimaryPages() {
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <AppShell />,
+    element: <PersistentAppLayout />,
     errorElement: <NotFoundPage />,
     children: [
-      {
-        element: <PersistentPrimaryPages />,
-        children: [
-          { index: true, element: null },
-          { path: "agenda", element: null },
-          { path: "agenda/week", element: null },
-          { path: "completed", element: null },
-          { path: "ai", element: null },
-          { path: "settings", element: null },
-          { path: "*", element: <NotFoundPage /> },
-        ],
-      },
+      { index: true, element: null },
+      { path: "agenda", element: null },
+      { path: "agenda/week", element: null },
+      { path: "completed", element: null },
+      { path: "ai", element: null },
+      { path: "settings", element: null },
+      { path: "alarms/new", element: <AlarmFormPage /> },
+      { path: "alarms/:id", element: <AlarmDetailPage /> },
+      { path: "alarms/:id/edit", element: <AlarmFormPage /> },
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
-  { path: "/alarms/new", element: <AlarmFormPage /> },
-  { path: "/alarms/:id", element: <AlarmDetailPage /> },
-  { path: "/alarms/:id/edit", element: <AlarmFormPage /> },
 ]);
 
-const backNavigation = createBackNavigation(router, appNavigation);
+const backNavigation = createBackNavigation(router, appNavigation, {
+  read: () => ({ top: window.scrollY, left: window.scrollX }),
+  restore: (position) => window.scrollTo({ ...position, behavior: "instant" }),
+});
 
 export default function App() {
   return (

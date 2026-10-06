@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import type { PropsWithChildren } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import { cn } from "../../libs/cn";
 import { Icon } from "../Icon";
 
@@ -7,7 +8,7 @@ const iconButton =
 const navItem =
   "flex flex-col items-center gap-1.5 text-[10px] font-bold text-muted no-underline [&>svg]:size-[22px]";
 
-export function AppShell() {
+export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation(),
     navigate = useNavigate();
   const isAgenda =
@@ -41,7 +42,7 @@ export function AppShell() {
         </button>
       </header>
       <main className="px-[22px] pt-2 pb-7 min-[700px]:px-[30px]">
-        <Outlet />
+        {children}
       </main>
       <nav
         className="fixed bottom-0 flex justify-around left-1/2 z-5 w-full max-w-[680px] -translate-x-1/2 border-t border-[color-mix(in_srgb,var(--border)_70%,transparent)] bg-[color-mix(in_srgb,var(--background)_93%,transparent)] px-[18px] pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur-[18px] min-[700px]:bottom-3 min-[700px]:rounded-b-[28px]"

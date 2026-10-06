@@ -4,7 +4,7 @@ import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { AlarmScheduleFields } from "../components/alarms/AlarmScheduleFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
-import { useBackNavigation } from "../libs/back-navigation";
+import { useBackNavigation, useReturnFromAlarm } from "../libs/back-navigation";
 import {
   nearestAlarmOccurrence,
   type Alarm,
@@ -43,6 +43,7 @@ export function AlarmFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const goBack = useBackNavigation();
+  const returnFromAlarm = useReturnFromAlarm();
   const { alarms, loading, saveAlarmBatch } = useAlarms();
   const editing = alarms.find((alarm) => alarm.id === id);
   const [form, setForm] = useState<AlarmInput>(
@@ -56,8 +57,8 @@ export function AlarmFormPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (id && !loading && !editing) navigate("/agenda");
-  }, [id, loading, editing, navigate]);
+    if (id && !loading && !editing) void returnFromAlarm();
+  }, [id, loading, editing, returnFromAlarm]);
 
   useEffect(() => {
     if (editing && initializedAlarmId.current !== editing.id) {
@@ -100,6 +101,10 @@ export function AlarmFormPage() {
     setSaving(true);
     try {
       const results = await saveAlarmBatch(inputs, id);
+      if (editing) {
+        await returnFromAlarm();
+        return;
+      }
       const nextAlarm = nearestAlarmOccurrence(results);
       navigate("/agenda", {
         state: {

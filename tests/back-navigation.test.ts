@@ -8,7 +8,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-function setup(initialEntries = ["/agenda"], initialIndex?: number) {
+function setup(initialEntries = ["/agenda"], initialIndex?: number, viewport?: Parameters<typeof createBackNavigation>[2]) {
   const router = createMemoryRouter([{ path: "*", element: null }], {
     initialEntries,
     initialIndex,
@@ -17,7 +17,7 @@ function setup(initialEntries = ["/agenda"], initialIndex?: number) {
     requestExit: mock(async () => {}),
     resetExitConfirmation: mock(async () => {}),
   };
-  const navigation = createBackNavigation(router, exitConfirmation);
+  const navigation = createBackNavigation(router, exitConfirmation, viewport);
   cleanups.push(() => {
     navigation.dispose();
     router.dispose();
@@ -125,5 +125,62 @@ describe("botão de voltar", () => {
     expect(resetExitConfirmation).toHaveBeenCalledTimes(1);
     await navigation.goBack();
     expect(resetExitConfirmation).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("retorno após editar ou cancelar um alarme", () => {
+  test("retorna ao histórico original mantendo a aba e a entrada de navegação", async () => {
+    const { router, navigation } = setup();
+    await router.navigate("/completed", { state: { tab: "completed" } });
+    const source = router.state.location;
+    await router.navigate("/alarms/reminder?occurrence=2026-10-07");
+    await navigation.returnFromAlarm();
+    expect(router.state.location).toEqual(source);
+  });
+
+  test("salvar uma edição pula os detalhes e retorna à aba de cancelados", async () => {
+    const { router, navigation } = setup();
+    await router.navigate("/completed", { state: { tab: "cancelled" } });
+    const source = router.state.location;
+    await router.navigate("/alarms/reminder?occurrence=2026-10-07");
+    await router.navigate("/alarms/reminder/edit");
+    await navigation.returnFromAlarm();
+    expect(router.state.location).toEqual(source);
+  });
+
+  test("retorna à visão semanal preservando seu estado e o histórico anterior", async () => {
+    const { router, navigation } = setup();
+    await router.navigate("/agenda/week", { state: { weekOffset: 2 } });
+    const source = router.state.location;
+    await router.navigate("/alarms/reminder");
+    await router.navigate("/alarms/reminder/edit");
+    await navigation.returnFromAlarm();
+    expect(router.state.location).toEqual(source);
+    await navigation.goBack();
+    expect(router.state.location.pathname).toBe("/agenda");
+  });
+
+  test("um link direto usa a agenda como destino sem sair do app", async () => {
+    const { router, navigation, requestExit } = setup(["/external", "/alarms/reminder/edit"], 1);
+    await navigation.returnFromAlarm();
+    expect(router.state.location.pathname).toBe("/agenda");
+    expect(requestExit).not.toHaveBeenCalled();
+  });
+
+  test("restaura a posição da lista, sem confundi-la com o scroll dos detalhes", async () => {
+    let scroll = { top: 480, left: 0 };
+    const restore = mock((position: typeof scroll) => { scroll = position; });
+    const { router, navigation } = setup(["/completed"], undefined, {
+      read: () => scroll,
+      restore,
+    });
+    await router.navigate("/alarms/reminder");
+    scroll = { top: 250, left: 0 };
+    await router.navigate("/alarms/reminder/edit");
+    scroll = { top: 150, left: 0 };
+    await navigation.returnFromAlarm();
+    navigation.restoreScroll();
+    expect(restore).toHaveBeenLastCalledWith({ top: 480, left: 0 });
+    expect(scroll.top).toBe(480);
   });
 });
