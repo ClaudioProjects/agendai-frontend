@@ -9,6 +9,7 @@ import {
   FiChevronRight,
   FiClock,
   FiEdit2,
+  FiMapPin,
   FiMic,
   FiMoreHorizontal,
   FiPause,
@@ -17,9 +18,12 @@ import {
   FiRepeat,
   FiSettings,
   FiTrash2,
+  FiVolume2,
   FiX,
   FiZap,
 } from "react-icons/fi";
+
+import { LuAudioLines, LuMusic2 } from "react-icons/lu";
 
 type IconName =
   | "calendar"
@@ -35,6 +39,10 @@ type IconName =
   | "mic"
   | "trash"
   | "edit"
+  | "map-pin"
+  | "music"
+  | "vibration"
+  | "volume"
   | "clock"
   | "repeat"
   | "bell"
@@ -56,6 +64,10 @@ const icons: Record<IconName, IconType> = {
   mic: FiMic,
   trash: FiTrash2,
   edit: FiEdit2,
+  "map-pin": FiMapPin,
+  music: LuMusic2,
+  vibration: LuAudioLines,
+  volume: FiVolume2,
   clock: FiClock,
   repeat: FiRepeat,
   bell: FiBell,
