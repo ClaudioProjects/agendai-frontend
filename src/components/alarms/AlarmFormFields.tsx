@@ -1,3 +1,5 @@
+import type { Dispatch, SetStateAction } from "react";
+import { AlarmSoundFields } from "./AlarmSoundFields";
 import {
   EVENT_TYPES,
   RECURRENCE_TYPES,
@@ -24,13 +26,13 @@ export function AlarmFormFields({
   showSchedulingFields = true,
 }: {
   form: AlarmInput;
-  onChange: (next: AlarmInput) => void;
+  onChange: Dispatch<SetStateAction<AlarmInput>>;
   autoFocus?: boolean;
   allowPastDates?: boolean;
   showSchedulingFields?: boolean;
 }) {
   const set = <K extends keyof AlarmInput>(key: K, value: AlarmInput[K]) =>
-    onChange({ ...form, [key]: value });
+    onChange((current) => ({ ...current, [key]: value }));
 
   return (
     <div className="grid gap-[18px]">
@@ -209,6 +211,14 @@ export function AlarmFormFields({
           />
         </label>
       )}
+      <AlarmSoundFields
+        sound={form.sound}
+        vibration={form.vibration}
+        volume={form.volume}
+        onSoundChange={(sound) => set("sound", sound)}
+        onVibrationChange={(vibration) => set("vibration", vibration)}
+        onVolumeChange={(volume) => set("volume", volume)}
+      />
       <div className={label}>Aviso</div>
       <p className="m-0 text-[11px] text-foreground text-warning">
         Você será avisado 1 minuto antes ({form.timeZone}).

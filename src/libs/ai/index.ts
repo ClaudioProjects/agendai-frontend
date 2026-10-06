@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { EVENT_TYPES, RECURRENCE_TYPES, REMINDER_TYPES } from "../alarm";
+import {
+  EVENT_TYPES,
+  RECURRENCE_TYPES,
+  REMINDER_TYPES,
+  type AlarmInput,
+} from "../alarm";
 import { prepareAudioForInterpretation } from "./audio";
 import { AiApiError } from "./errors";
 export { AiApiError } from "./errors";
@@ -33,7 +38,8 @@ const alarmDraftSchema = z.object({
   eventColor: z.string().nullable(),
 });
 
-export type AlarmDraft = z.infer<typeof alarmDraftSchema>;
+export type AlarmDraft = z.infer<typeof alarmDraftSchema> &
+  Partial<Pick<AlarmInput, "sound" | "vibration" | "volume">>;
 
 type TimeContext = {
   currentDateTime: string;

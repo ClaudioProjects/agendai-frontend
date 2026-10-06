@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { AlarmScheduleFields } from "../components/alarms/AlarmScheduleFields";
@@ -31,6 +31,9 @@ function toAlarmInput(alarm: Alarm): AlarmInput {
     timeZone: alarm.timeZone,
     recurrence: alarm.recurrence,
     notifications: alarm.notifications,
+    sound: alarm.sound,
+    vibration: alarm.vibration,
+    volume: alarm.volume,
     status: alarm.status,
     exceptions: alarm.exceptions,
   };
@@ -48,6 +51,7 @@ export function AlarmFormPage() {
   const [schedule, setSchedule] = useState<AlarmSchedule>(() =>
     scheduleFromAlarmInput(editing ? toAlarmInput(editing) : blankAlarm())
   );
+  const initializedAlarmId = useRef(editing?.id);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -56,9 +60,10 @@ export function AlarmFormPage() {
   }, [id, loading, editing, navigate]);
 
   useEffect(() => {
-    if (editing) {
-      // The form is initialized before async storage finishes loading.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (editing && initializedAlarmId.current !== editing.id) {
+      // Initialize once after loading; returning from a native sound picker refreshes
+      // storage and must preserve the user's unsaved form changes.
+      initializedAlarmId.current = editing.id;
       setForm(toAlarmInput(editing));
       setSchedule(scheduleFromAlarmInput(toAlarmInput(editing)));
     }

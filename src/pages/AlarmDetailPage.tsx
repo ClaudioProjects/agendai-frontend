@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { Icon } from "../components/Icon";
 import {
+  alarmSoundLabel,
   eventMeta,
   formatCurrency,
   formatDate,
@@ -125,6 +126,21 @@ export function AlarmDetailPage() {
       icon: "bell" as const,
       label: "Notificações",
       value: "1 minuto antes",
+    },
+    {
+      icon: "bell" as const,
+      label: "Música do alarme",
+      value: alarmSoundLabel(alarm.sound),
+    },
+    {
+      icon: "settings" as const,
+      label: "Vibração",
+      value: alarm.vibration ? "Ativada" : "Desativada",
+    },
+    {
+      icon: "bell" as const,
+      label: "Volume do alarme",
+      value: alarm.volume === 0 ? "Silenciado (0%)" : String(alarm.volume) + "%",
     },
     ...(alarm.reminderType === "pay_bill" && alarm.amount !== undefined
       ? [

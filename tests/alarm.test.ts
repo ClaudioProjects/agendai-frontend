@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   alarmSchema,
+  alarmVolumeGain,
   completionForOccurrence,
   formatAlarmCountdown,
   isAlarmForDate,
@@ -21,6 +22,9 @@ function alarm(overrides: Partial<Alarm> = {}): Alarm {
     eventType: "DEFAULT",
     recurrence: { type: "weekly", daysOfWeek: [1] },
     notifications: [0],
+    sound: { type: "default" },
+    vibration: true,
+    volume: 100,
     status: "pending",
     createdAt: "2026-09-01T00:00:00.000Z",
     updatedAt: "2026-09-01T00:00:00.000Z",
@@ -90,6 +94,49 @@ describe("isAlarmForDate", () => {
       expect(result.data.scheduleRevision).toBe(1);
       expect(result.data.timeZone).toBeTruthy();
     }
+  });
+
+  test("migra alarmes antigos para som padrão e vibração ativada", () => {
+    const result = parseStoredAlarm({ ...alarm(), sound: undefined, vibration: undefined, volume: undefined });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sound).toEqual({ type: "default" });
+      expect(result.data.vibration).toBe(true);
+      expect(result.data.volume).toBe(100);
+    }
+  });
+
+  test("preserva música personalizada e vibração desligada ao recarregar", () => {
+    const sound = { type: "custom" as const, name: "Música.mp3", uri: "content://music/1" };
+    const result = parseStoredAlarm(JSON.parse(JSON.stringify(alarm({ sound, vibration: false, volume: 25 }))));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sound).toEqual(sound);
+      expect(result.data.vibration).toBe(false);
+      expect(result.data.volume).toBe(25);
+    }
+  });
+
+  test("rejeita toques sem URI ou nome e aceita alarme sem som", () => {
+    expect(alarmSchema.safeParse({ ...alarm(), sound: { type: "device", name: "Toque" } }).success).toBe(false);
+    expect(alarmSchema.safeParse({ ...alarm(), sound: { type: "custom", uri: "content://music/1" } }).success).toBe(false);
+    expect(alarmSchema.safeParse({ ...alarm(), sound: { type: "silent" }, vibration: false }).success).toBe(true);
+  });
+
+  test("valida volume e preserva zero ao salvar e recarregar", () => {
+    for (const volume of [-1, 101, 2.5])
+      expect(alarmSchema.safeParse({ ...alarm(), volume }).success).toBe(false);
+    const result = parseStoredAlarm(JSON.parse(JSON.stringify(alarm({ volume: 0 }))));
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.volume).toBe(0);
+  });
+
+  test("o ganho do volume fica limitado e tem progressão perceptual", () => {
+    expect(alarmVolumeGain(0)).toBe(0);
+    expect(alarmVolumeGain(-10)).toBe(0);
+    expect(alarmVolumeGain(50)).toBeCloseTo(0.1, 6);
+    expect(alarmVolumeGain(100)).toBe(1);
+    expect(alarmVolumeGain(120)).toBe(1);
   });
 
   test("conclui apenas a ocorrência confirmada de uma série", () => {

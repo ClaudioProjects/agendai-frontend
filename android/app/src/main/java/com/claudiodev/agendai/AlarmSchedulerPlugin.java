@@ -1,6 +1,7 @@
 package com.claudiodev.agendai;
 
 import android.Manifest;
+import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.app.NotificationManager;
@@ -8,7 +9,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.media.MediaPlayer;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
 import android.net.Uri;
+import android.provider.OpenableColumns;
+import android.provider.DocumentsContract;
 import android.os.Build;
 import android.provider.Settings;
 import androidx.activity.result.ActivityResult;
@@ -34,11 +41,17 @@ public class AlarmSchedulerPlugin extends Plugin {
         "notifications", "microphone", "exactAlarms", "fullScreenIntent", "overlay"
     };
     private AlarmScheduler scheduler;
+    private AlarmSoundPreview soundPreview;
     private SharedPreferences permissionPreferences;
 
     @Override
     public void load() {
         scheduler = new AlarmScheduler(getContext());
+        soundPreview = new AlarmSoundPreview(getContext(), reason -> {
+            JSObject event = new JSObject();
+            event.put("reason", reason);
+            notifyListeners("alarmPreviewStopped", event);
+        });
         permissionPreferences = getContext().getSharedPreferences("agendai_permissions_v1", Context.MODE_PRIVATE);
         publishOpenEvent(getActivity().getIntent());
     }
@@ -146,6 +159,164 @@ public class AlarmSchedulerPlugin extends Plugin {
         result.put("overlay", Settings.canDrawOverlays(getContext()));
         result.put("startupComplete", permissionPreferences.getBoolean("startup_complete", false));
         return result;
+    }
+
+    @PluginMethod
+    public void pickAlarmSound(PluginCall call) {
+        getActivity().runOnUiThread(() -> soundPreview.stop("picker"));
+        String source = call.getString("source", "");
+        Intent intent;
+        if ("device".equals(source)) {
+            JSObject current = call.getObject("currentSound", new JSObject());
+            Uri existing = "device".equals(current.optString("type"))
+                ? Uri.parse(current.optString("uri")) : RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            intent = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Música do alarme")
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existing);
+        } else if ("custom".equals(source)) {
+            intent = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("audio/*")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                .putExtra(DocumentsContract.EXTRA_PROMPT, "Escolha uma música para o alarme");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // The Android media provider groups indexed audio independently of its folders.
+                // DocumentsUI falls back to its usual location if an OEM has no audio root.
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI,
+                    DocumentsContract.buildDocumentUri("com.android.providers.media.documents", "audio_root"));
+            }
+        } else {
+            call.reject("Escolha um toque do dispositivo ou uma música personalizada.");
+            return;
+        }
+        try {
+            startActivityForResult(call, intent, "alarmSoundResult");
+        } catch (RuntimeException error) {
+            call.reject("Não foi possível abrir o seletor de músicas neste dispositivo.", error);
+        }
+    }
+
+    @ActivityCallback
+    private void alarmSoundResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        Intent data = result.getData();
+        if (result.getResultCode() != Activity.RESULT_OK || data == null) {
+            JSObject response = new JSObject();
+            response.put("cancelled", true);
+            call.resolve(response);
+            return;
+        }
+        // Metadata and audio validation can involve a document provider; keep them off the UI thread.
+        execute(() -> {
+            try {
+                boolean custom = "custom".equals(call.getString("source"));
+                Uri uri = custom ? data.getData() : data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+                JSObject sound = new JSObject();
+                if (uri == null) {
+                    if (custom) throw new IllegalArgumentException("Nenhum arquivo de áudio foi selecionado.");
+                    sound.put("type", "silent");
+                } else if (!custom && RingtoneManager.isDefault(uri)) {
+                    sound.put("type", "default");
+                } else {
+                    if (custom) {
+                        MediaPlayer validation = new MediaPlayer();
+                        try {
+                            validation.setDataSource(getContext(), uri);
+                            validation.prepare();
+                        } finally {
+                            validation.release();
+                        }
+                        getContext().getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    }
+                    String name = custom ? documentName(uri) : ringtoneName(uri);
+                    sound.put("type", custom ? "custom" : "device");
+                    sound.put("uri", uri.toString());
+                    sound.put("name", name);
+                }
+                JSObject response = new JSObject();
+                response.put("cancelled", false);
+                response.put("sound", sound);
+                call.resolve(response);
+            } catch (Exception error) {
+                call.reject("Não foi possível acessar este áudio. Escolha outro arquivo ou toque.", error);
+            }
+        });
+    }
+
+    private String documentName(Uri uri) {
+        try (Cursor cursor = getContext().getContentResolver().query(uri,
+            new String[] { OpenableColumns.DISPLAY_NAME }, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String name = cursor.getString(0);
+                if (name != null && !name.trim().isEmpty()) return name;
+            }
+        }
+        return "Música personalizada";
+    }
+
+    private String ringtoneName(Uri uri) {
+        Ringtone ringtone = RingtoneManager.getRingtone(getContext(), uri);
+        String name = ringtone == null ? null : ringtone.getTitle(getContext());
+        return name == null || name.trim().isEmpty() ? "Toque do dispositivo" : name;
+    }
+
+    @PluginMethod
+    public void previewAlarmSound(PluginCall call) {
+        JSObject sound = call.getObject("sound");
+        Integer volume = call.getInt("volume", 100);
+        if (sound == null || volume == null || volume < 0 || volume > 100) {
+            call.reject("Informe uma música e um volume válido para ouvir a prévia.");
+            return;
+        }
+        try {
+            if (scheduler.ringingAlarms().length() > 0) {
+                call.reject("Dispense o alarme que está tocando antes de ouvir uma prévia.");
+                return;
+            }
+        } catch (JSONException error) {
+            call.reject("Não foi possível iniciar a prévia.", error);
+            return;
+        }
+        JSObject alarm = new JSObject();
+        alarm.put("sound", sound);
+        alarm.put("volume", volume);
+        getActivity().runOnUiThread(() -> soundPreview.start(alarm,
+            () -> call.resolve(), error -> call.reject(error.getMessage(), error)));
+    }
+
+    @PluginMethod
+    public void setAlarmPreviewVolume(PluginCall call) {
+        Integer volume = call.getInt("volume");
+        if (volume == null || volume < 0 || volume > 100) {
+            call.reject("Informe um volume entre 0 e 100.");
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            soundPreview.setVolume(volume);
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void stopAlarmPreview(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            soundPreview.stop("stopped");
+            call.resolve();
+        });
+    }
+
+    @Override
+    protected void handleOnPause() {
+        if (soundPreview != null) soundPreview.stop("paused");
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (soundPreview != null) soundPreview.stop("destroyed");
     }
 
     @PluginMethod

@@ -3,7 +3,7 @@ import {
   registerPlugin,
   type PluginListenerHandle,
 } from "@capacitor/core";
-import type { Alarm } from "./alarm";
+import { alarmSoundSchema, type Alarm, type AlarmSound } from "./alarm";
 
 export type NativeAlarmConfirmation = {
   alarmId: string;
@@ -34,6 +34,17 @@ type AlarmSchedulerPlugin = {
   requestAppPermission(options: {
     permission: AppPermission;
   }): Promise<AppPermissions>;
+  pickAlarmSound(options: {
+    source: "device" | "custom";
+    currentSound: AlarmSound;
+  }): Promise<{ cancelled: boolean; sound?: AlarmSound }>;
+  previewAlarmSound(options: { sound: AlarmSound; volume: number }): Promise<void>;
+  setAlarmPreviewVolume(options: { volume: number }): Promise<void>;
+  stopAlarmPreview(): Promise<void>;
+  addListener(
+    eventName: "alarmPreviewStopped",
+    listener: (event: { reason: string }) => void,
+  ): Promise<PluginListenerHandle>;
   upsert(options: { alarm: Alarm }): Promise<void>;
   remove(options: { alarmId: string }): Promise<void>;
   reconcile(options: { alarms: Alarm[] }): Promise<void>;
@@ -56,6 +67,23 @@ function isAndroid() {
 }
 
 export const alarmScheduler = {
+  async pickAlarmSound(source: "device" | "custom", currentSound: AlarmSound) {
+    const result = await nativePlugin.pickAlarmSound({ source, currentSound });
+    if (result.cancelled) return undefined;
+    return alarmSoundSchema.parse(result.sound);
+  },
+  async previewAlarmSound(sound: AlarmSound, volume: number) {
+    await nativePlugin.previewAlarmSound({ sound, volume });
+  },
+  async setAlarmPreviewVolume(volume: number) {
+    if (isAndroid()) await nativePlugin.setAlarmPreviewVolume({ volume });
+  },
+  async stopAlarmPreview() {
+    if (isAndroid()) await nativePlugin.stopAlarmPreview();
+  },
+  async onPreviewStopped(listener: (event: { reason: string }) => void) {
+    return nativePlugin.addListener("alarmPreviewStopped", listener);
+  },
   async checkAppPermissions() {
     return nativePlugin.checkAppPermissions();
   },

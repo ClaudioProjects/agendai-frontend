@@ -2,6 +2,13 @@ import { z } from "zod";
 
 export const DEFAULT_ALARM_TITLE = "Lembrete";
 export const ALARM_NOTIFICATION_MINUTES = 1;
+export const DEFAULT_ALARM_VOLUME = 100;
+
+/** Maps the slider to a perceptual gain; zero is fully muted. */
+export function alarmVolumeGain(volume: number) {
+  const percent = Math.max(0, Math.min(100, volume));
+  return percent === 0 ? 0 : Math.pow(10, (percent - 100) / 50);
+}
 
 export const EVENT_TYPES = [
   "DEFAULT",
@@ -26,6 +33,28 @@ export const RECURRENCE_TYPES = [
 ] as const;
 export const REMINDER_TYPES = ["reminder", "pay_bill"] as const;
 
+export const alarmSoundSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("default") }),
+  z.object({ type: z.literal("silent") }),
+  z.object({
+    type: z.literal("device"),
+    name: z.string().min(1),
+    uri: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("custom"),
+    name: z.string().min(1),
+    uri: z.string().min(1),
+  }),
+]);
+export type AlarmSound = z.infer<typeof alarmSoundSchema>;
+
+export function alarmSoundLabel(sound: AlarmSound) {
+  if (sound.type === "default") return "Som padrão do dispositivo";
+  if (sound.type === "silent") return "Sem som";
+  return sound.name;
+}
+
 export const alarmSchema = z
   .object({
     id: z.string(),
@@ -44,6 +73,9 @@ export const alarmSchema = z
       daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
     }),
     notifications: z.array(z.number().int().min(0)),
+    sound: alarmSoundSchema.default({ type: "default" }),
+    vibration: z.boolean().default(true),
+    volume: z.number().int().min(0).max(100).default(DEFAULT_ALARM_VOLUME),
     status: z.enum(["pending", "completed", "cancelled"]),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -220,7 +252,13 @@ function zonedDateTime(dateKey: string, time: string, timeZone: string) {
 }
 
 /** Returns the next actual alarm time for one active series. */
-export function nextAlarmOccurrence(alarm: Alarm, now = new Date()) {
+export function nextAlarmOccurrence(
+  alarm: Pick<
+    Alarm,
+    "status" | "date" | "time" | "timeZone" | "recurrence" | "exceptions"
+  >,
+  now = new Date(),
+) {
   if (alarm.status !== "pending") return null;
   const occurrenceAt = (dateKey: string) => {
     if (alarm.exceptions[dateKey]) return null;
@@ -282,7 +320,10 @@ export function formatAlarmCountdown(target: Date, now = new Date()) {
   return joinDuration(parts);
 }
 
-export function isAlarmOccurrence(alarm: Alarm, dateKey: string) {
+export function isAlarmOccurrence(
+  alarm: Pick<Alarm, "date" | "recurrence">,
+  dateKey: string,
+) {
   if (alarm.recurrence.type === "none") return alarm.date === dateKey;
   if (
     dateKey < alarm.date ||

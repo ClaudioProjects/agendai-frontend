@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { AlarmInput } from "../src/libs/alarm";
 import {
+  blankAlarm,
+  weekdayForDate,
   scheduleFromAlarmInput,
   scheduledAlarmInputs,
   validateAlarmInput,
@@ -19,6 +21,9 @@ function input(overrides: Partial<AlarmInput> = {}): AlarmInput {
     timeZone: "America/Sao_Paulo",
     recurrence: { type: "none", daysOfWeek: [] },
     notifications: [0],
+    sound: { type: "default" },
+    vibration: true,
+    volume: 100,
     status: "pending",
     exceptions: {},
     ...overrides,
@@ -26,6 +31,31 @@ function input(overrides: Partial<AlarmInput> = {}): AlarmInput {
 }
 
 describe("agenda de alarmes", () => {
+  test("criação manual inicia semanal com o dia da data selecionado", () => {
+    const form = blankAlarm();
+    expect(form.recurrence).toEqual({ type: "weekly", daysOfWeek: [weekdayForDate(form.date)] });
+    expect(scheduleFromAlarmInput(form).recurrenceType).toBe("weekly");
+    expect(form.sound).toEqual({ type: "default" });
+    expect(form.vibration).toBe(true);
+    expect(form.volume).toBe(100);
+  });
+
+  test("criação por IA inicia sem recorrência", () => {
+    expect(blankAlarm("ai").recurrence).toEqual({ type: "none", daysOfWeek: [] });
+  });
+
+  test("preserva música e vibração ao criar vários alarmes", () => {
+    const sound = { type: "custom" as const, name: "Minha música.mp3", uri: "content://music/1" };
+    const alarms = scheduledAlarmInputs(input({ sound, vibration: false, volume: 35 }), {
+      weekAnchor: "2026-09-09", daysOfWeek: [3, 5], recurrenceType: "none",
+    });
+    for (const alarm of alarms) {
+      expect(alarm.sound).toEqual(sound);
+      expect(alarm.vibration).toBe(false);
+      expect(alarm.volume).toBe(35);
+    }
+  });
+
   test("calcula as datas selecionadas dentro da semana ancorada", () => {
     expect(weekDatesForDays("2026-09-09", [5, 1, 3])).toEqual([
       "2026-09-07",
@@ -103,6 +133,12 @@ describe("agenda de alarmes", () => {
     });
 
     expect(alarm.notifications).toEqual([1]);
+  });
+
+  test("aceita uma série semanal cuja primeira data passou mas ainda tem ocorrências futuras", () => {
+    expect(validateAlarmInput(input({ date: "2000-01-03", recurrence: { type: "weekly", daysOfWeek: [1] } }), { requireFuture: true })).toBeNull();
+    expect(validateAlarmInput(input({ date: "2000-01-03" }), { requireFuture: true })).toBe("Escolha um horário futuro para criar este lembrete.");
+    expect(validateAlarmInput(input({ date: "2000-01-03", recurrence: { type: "weekly", daysOfWeek: [1], endDate: "2000-01-10" } }), { requireFuture: true })).toBe("Escolha um horário futuro para criar este lembrete.");
   });
 
   test("rejeita horários fora do formato de 24 horas", () => {

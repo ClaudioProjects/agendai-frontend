@@ -1,8 +1,10 @@
 import {
   ALARM_NOTIFICATION_MINUTES,
+  DEFAULT_ALARM_VOLUME,
   dateFromParts,
   localDateKey,
   localTimeZone,
+  nextAlarmOccurrence,
   type AlarmInput,
   type RecurrenceType,
 } from "./alarm";
@@ -87,7 +89,8 @@ export function scheduledAlarmInputs(
   }));
 }
 
-export function blankAlarm(): AlarmInput {
+export function blankAlarm(source: "manual" | "ai" = "manual"): AlarmInput {
+  const date = localDateKey(new Date());
   return {
     title: "",
     description: "",
@@ -95,11 +98,17 @@ export function blankAlarm(): AlarmInput {
     amount: undefined,
     eventType: "DEFAULT",
     eventColor: "",
-    date: localDateKey(new Date()),
+    date,
     time: "09:00",
     timeZone: localTimeZone(),
-    recurrence: { type: "none", daysOfWeek: [] },
+    recurrence:
+      source === "manual"
+        ? { type: "weekly", daysOfWeek: [weekdayForDate(date)] }
+        : { type: "none", daysOfWeek: [] },
     notifications: [ALARM_NOTIFICATION_MINUTES],
+    sound: { type: "default" },
+    vibration: true,
+    volume: DEFAULT_ALARM_VOLUME,
     status: "pending",
     exceptions: {},
   };
@@ -120,7 +129,9 @@ export function validateAlarmInput(
     return "Escolha um horário válido.";
   if (
     requireFuture &&
-    dateFromParts(form.date, form.time).getTime() < Date.now()
+    (form.recurrence.type === "none"
+      ? dateFromParts(form.date, form.time).getTime() < Date.now()
+      : !nextAlarmOccurrence(form))
   )
     return "Escolha um horário futuro para criar este lembrete.";
   if (form.recurrence.type === "weekly" && !form.recurrence.daysOfWeek?.length)

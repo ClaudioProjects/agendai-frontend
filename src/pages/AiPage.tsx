@@ -2,14 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
-import {
-  ALARM_NOTIFICATION_MINUTES,
-  formatCurrency,
-  localTimeZone,
-  type AlarmInput,
-} from "../libs/alarm";
+import { formatCurrency, type AlarmInput } from "../libs/alarm";
 import { blankAlarm, validateAlarmInput } from "../libs/alarm-form";
 import { AiApiError, aiInterpreter, type AlarmDraft } from "../libs/ai";
+import {
+  draftToFormInput,
+  formToDraft,
+  isReadyToSave,
+  toAlarmInput,
+} from "../libs/ai/alarm-draft";
 import { cn } from "../libs/cn";
 import { AiDraftLoading } from "./ai/AiDraftLoading";
 
@@ -46,89 +47,6 @@ function normalizeAudioMimeType(value: string) {
 
 function preferredRecordingMimeType() {
   return recordingMimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
-}
-
-function isReadyToSave(draft: AlarmDraft) {
-  return Boolean(
-    draft.date &&
-    draft.time &&
-    draft.title.trim() &&
-    (draft.reminderType !== "pay_bill" ||
-      (draft.amount !== null && draft.amount > 0)),
-  );
-}
-
-function toAlarmInput(draft: AlarmDraft): AlarmInput {
-  if (!isReadyToSave(draft))
-    throw new Error("Preencha os campos obrigatórios.");
-  return {
-    title: draft.title.trim(),
-    description: draft.description?.trim() || undefined,
-    reminderType: draft.reminderType ?? "reminder",
-    amount: draft.amount ?? undefined,
-    eventType: draft.eventType ?? "DEFAULT",
-    eventColor: draft.eventColor ?? undefined,
-    date: draft.date!,
-    time: draft.time!,
-    timeZone: localTimeZone(),
-    recurrence: draft.recurrence
-      ? {
-          type: draft.recurrence.type ?? "none",
-          endDate: draft.recurrence.endDate ?? undefined,
-          daysOfWeek: draft.recurrence.daysOfWeek ?? undefined,
-        }
-      : { type: "none" },
-    notifications: [ALARM_NOTIFICATION_MINUTES],
-    status: draft.status ?? "pending",
-    exceptions: draft.exceptions ?? {},
-  };
-}
-
-function draftToFormInput(draft: AlarmDraft): AlarmInput {
-  const fallback = blankAlarm();
-  return {
-    ...fallback,
-    title: draft.title ?? "",
-    description: draft.description ?? "",
-    reminderType: draft.reminderType ?? "reminder",
-    amount: draft.amount ?? undefined,
-    eventType: draft.eventType ?? "DEFAULT",
-    eventColor: draft.eventColor ?? "",
-    date: draft.date ?? fallback.date,
-    time: draft.time ?? fallback.time,
-    recurrence: draft.recurrence
-      ? {
-          type: draft.recurrence.type ?? "none",
-          endDate: draft.recurrence.endDate ?? undefined,
-          daysOfWeek: draft.recurrence.daysOfWeek ?? undefined,
-        }
-      : fallback.recurrence,
-    notifications: [ALARM_NOTIFICATION_MINUTES],
-    status: draft.status ?? "pending",
-    exceptions: draft.exceptions ?? {},
-  };
-}
-
-function formToDraft(form: AlarmInput, draft: AlarmDraft): AlarmDraft {
-  return {
-    ...draft,
-    title: form.title,
-    description: form.description || null,
-    reminderType: form.reminderType,
-    amount: form.amount ?? null,
-    eventType: form.eventType,
-    eventColor: form.eventColor || null,
-    date: form.date,
-    time: form.time,
-    recurrence: {
-      type: form.recurrence.type,
-      endDate: form.recurrence.endDate ?? null,
-      daysOfWeek: form.recurrence.daysOfWeek ?? null,
-    },
-    notifications: form.notifications,
-    status: form.status,
-    exceptions: form.exceptions,
-  };
 }
 
 function messageFrom(error: unknown) {
@@ -268,7 +186,7 @@ export function AiPage() {
   const [editingDraftIndex, setEditingDraftIndex] = useState<number | null>(
     null,
   );
-  const [draftForm, setDraftForm] = useState<AlarmInput>(() => blankAlarm());
+  const [draftForm, setDraftForm] = useState<AlarmInput>(() => blankAlarm("ai"));
   const [editorError, setEditorError] = useState("");
   const [savingDraft, setSavingDraft] = useState<number | null>(null);
   const [message, setMessage] = useState("");
