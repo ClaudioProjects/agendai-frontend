@@ -45,8 +45,8 @@ function modulo(value: number, length: number) {
 function weekLabel(weekAnchor: string) {
   const days = weekDatesForDays(weekAnchor, [0, 6]);
   if (days.length !== 2) return "Escolher semana";
-  const start = formatDate(days[0], { day: "numeric", month: "short" });
-  const end = formatDate(days[1], { day: "numeric", month: "short" });
+  const start = formatDate(days[0]);
+  const end = formatDate(days[1]);
   return `Semana de ${start} a ${end}`;
 }
 

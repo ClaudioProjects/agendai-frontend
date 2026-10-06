@@ -390,7 +390,7 @@ export function formatDate(
 ) {
   return new Intl.DateTimeFormat(
     "pt-BR",
-    options ?? { weekday: "long", day: "numeric", month: "long" },
+    options ?? { day: "2-digit", month: "2-digit", year: "numeric" },
   ).format(new Date(`${dateKey}T12:00:00`));
 }
 export function formatShortDate(dateKey: string) {

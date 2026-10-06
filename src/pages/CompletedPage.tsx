@@ -5,6 +5,7 @@ import { Icon } from "../components/Icon";
 import {
   eventMeta,
   formatCurrency,
+  formatDate,
   getAlarmTitle,
   isAlarmOccurrence,
 } from "../libs/alarm";
@@ -158,7 +159,7 @@ export function CompletedPage() {
                         {getAlarmTitle(alarm)}
                       </h2>
                       <p className="m-0 mt-1 text-xs text-muted">
-                        {occurrenceDate ?? alarm.date} às {alarm.time}
+                        {formatDate(occurrenceDate ?? alarm.date)} às {alarm.time}
                         {alarm.reminderType === "pay_bill" &&
                         alarm.amount !== undefined
                           ? ` · ${formatCurrency(alarm.amount)}`

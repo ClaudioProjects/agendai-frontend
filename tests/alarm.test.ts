@@ -4,6 +4,7 @@ import {
   alarmVolumeGain,
   completionForOccurrence,
   formatAlarmCountdown,
+  formatDate,
   isAlarmForDate,
   nearestAlarmOccurrence,
   nextAlarmOccurrence,
@@ -193,5 +194,18 @@ describe("isAlarmForDate", () => {
     expect(
       formatAlarmCountdown(new Date("2026-09-11T13:04:00.000Z"), now),
     ).toBe("2 dias, 3 horas e 4 minutos");
+  });
+});
+
+describe("datas em português do Brasil", () => {
+  test("exibe datas completas como DD/MM/AAAA, incluindo zeros e anos bissextos", () => {
+    expect(formatDate("2026-10-07")).toBe("07/10/2026");
+    expect(formatDate("2026-01-01")).toBe("01/01/2026");
+    expect(formatDate("2024-02-29")).toBe("29/02/2024");
+  });
+
+  test("mantém nomes de dias e meses em português quando solicitados", () => {
+    expect(formatDate("2026-10-07", { weekday: "long" })).toBe("quarta-feira");
+    expect(formatDate("2026-10-07", { day: "numeric", month: "long" })).toBe("7 de outubro");
   });
 });

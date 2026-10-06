@@ -109,12 +109,7 @@ export function AlarmDetailPage() {
     {
       icon: "calendar" as const,
       label: "Data",
-      value: formatDate(occurrenceDate, {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
+      value: formatDate(occurrenceDate),
     },
     { icon: "clock" as const, label: "Horário", value: alarm.time },
     { icon: "map-pin" as const, label: "Fuso", value: alarm.timeZone },
@@ -122,7 +117,7 @@ export function AlarmDetailPage() {
       icon: "repeat" as const,
       label: "Recorrência",
       value: `${repeat}${
-        alarm.recurrence.endDate ? ` até ${alarm.recurrence.endDate}` : ""
+        alarm.recurrence.endDate ? ` até ${formatDate(alarm.recurrence.endDate)}` : ""
       }`,
     },
     {

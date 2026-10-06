@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
-import { formatCurrency, type AlarmInput } from "../libs/alarm";
+import { formatDate, formatCurrency, type AlarmInput } from "../libs/alarm";
 import { blankAlarm, validateAlarmInput } from "../libs/alarm-form";
 import { AiApiError, aiInterpreter, type AlarmDraft } from "../libs/ai";
 import {
@@ -585,7 +585,7 @@ export function AiPage() {
                     </p>
                   )}
                   <p className="m-0 mt-2 text-xs font-semibold text-foreground">
-                    {draft.date ?? "Data não identificada"} ·{" "}
+                    {draft.date ? formatDate(draft.date) : "Data não identificada"} ·{" "}
                     {draft.time ?? "Horário não identificado"}
                     {draft.reminderType === "pay_bill" && draft.amount !== null
                       ? ` · ${formatCurrency(draft.amount)}`

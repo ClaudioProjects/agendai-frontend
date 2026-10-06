@@ -65,13 +65,8 @@ export function HomePage() {
         .sort((a, b) => a.time.localeCompare(b.time)),
     [alarms, selectedDate],
   );
-  const dateLabel = capitalize(
-    formatDate(selectedDate, {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }),
-  );
+  const weekdayLabel = capitalize(formatDate(selectedDate, { weekday: "long" }));
+  const dateLabel = `${weekdayLabel}, ${formatDate(selectedDate)}`;
   return (
     <div className="relative pb-5">
       <CalendarStrip
@@ -87,7 +82,7 @@ export function HomePage() {
             {selectedDate === today ? "Hoje" : "Sua agenda"}
           </span>
           <h1 className="m-0 mt-1.5 text-[24px] leading-none font-bold tracking-[-0.055em]">
-            {selectedDate === today ? "Hoje" : dateLabel.split(",")[0]}
+            {selectedDate === today ? "Hoje" : weekdayLabel}
           </h1>
           <p className="m-0 mt-1 text-[13px] text-muted">{dateLabel}</p>
         </div>

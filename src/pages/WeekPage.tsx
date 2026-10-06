@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { AlarmCard } from "../components/home/AlarmCard";
 import { Icon } from "../components/Icon";
-import { isAlarmForDate, localDateKey, formatShortDate } from "../libs/alarm";
+import { isAlarmForDate, localDateKey, formatDate } from "../libs/alarm";
 import { useAlarms } from "../App";
 function mondayOf(date: Date) {
   const result = new Date(date);
@@ -34,8 +34,8 @@ export function WeekPage() {
             Visão semanal
           </span>
           <h1 className="m-0 mt-1.5 text-[clamp(26px,7vw,35px)] leading-[1.07] font-bold tracking-[-0.05em]">
-            {formatShortDate(localDateKey(days[0]))} —{" "}
-            {formatShortDate(localDateKey(days[6]))}
+            {formatDate(localDateKey(days[0]))} —{" "}
+            {formatDate(localDateKey(days[6]))}
           </h1>
         </div>
         <Link
