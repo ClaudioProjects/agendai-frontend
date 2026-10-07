@@ -55,6 +55,11 @@
   --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
+.dark .alarm-card__amount {
+  background: color-mix(in srgb, var(--warning) 70%, white);
+  color: var(--warning-foreground);
+}
+
 .theme-logo--dark {
   display: none;
 }

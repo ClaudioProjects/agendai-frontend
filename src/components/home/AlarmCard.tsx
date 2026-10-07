@@ -79,7 +79,7 @@ export function AlarmCard({
           </p>
         )}
         {alarm.reminderType === "pay_bill" && alarm.amount !== undefined && (
-          <span className="mt-1.5 inline-flex rounded-md bg-[color-mix(in_srgb,var(--warning)_16%,transparent)] px-1.5 py-0.5 text-[11px] font-bold text-warning-foreground">
+          <span className="alarm-card__amount mt-1.5 inline-flex rounded-md bg-[color-mix(in_srgb,var(--warning)_16%,transparent)] px-1.5 py-0.5 text-[11px] font-bold text-warning-foreground">
             {formatCurrency(alarm.amount)}
           </span>
         )}
