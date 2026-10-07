@@ -54,7 +54,13 @@ function browserTimeContext(): TimeContext {
   const absoluteOffset = Math.abs(offset);
   const pad = (value: number) => String(value).padStart(2, "0");
   return {
-    currentDateTime: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}${sign}${pad(Math.floor(absoluteOffset / 60))}:${pad(absoluteOffset % 60)}`,
+    currentDateTime: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+      date.getDate(),
+    )}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+      date.getSeconds(),
+    )}${sign}${pad(Math.floor(absoluteOffset / 60))}:${pad(
+      absoluteOffset % 60,
+    )}`,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     locale: navigator.language || "pt-BR",
   };
@@ -145,7 +151,7 @@ export interface AiInterpreter {
 
 export const aiInterpreter: AiInterpreter = {
   async interpretText(text) {
-    const response = await authorizedRequest("/parse", {
+    const response = await authorizedRequest("/interpret/text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, context: browserTimeContext() }),
@@ -160,7 +166,7 @@ export const aiInterpreter: AiInterpreter = {
     form.set("currentDateTime", context.currentDateTime);
     form.set("timezone", context.timezone);
     form.set("locale", context.locale);
-    const response = await authorizedRequest("/transcribe", {
+    const response = await authorizedRequest("/interpret/audio", {
       method: "POST",
       body: form,
     });
