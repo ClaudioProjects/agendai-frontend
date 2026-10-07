@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { AlarmFormFields } from "../components/alarms/AlarmFormFields";
+import { useNavigate } from "react-router";
+import { useAiDrafts } from "../libs/ai/draft-context";
 import { Icon } from "../components/Icon";
 import { useAlarms } from "../App";
-import { formatDate, formatCurrency, type AlarmInput } from "../libs/alarm";
-import { blankAlarm, validateAlarmInput } from "../libs/alarm-form";
+import { formatDate, formatCurrency } from "../libs/alarm";
 import { AiApiError, aiInterpreter, type AlarmDraft } from "../libs/ai";
 import {
-  draftToFormInput,
-  formToDraft,
   isReadyToSave,
   toAlarmInput,
 } from "../libs/ai/alarm-draft";
@@ -179,15 +177,11 @@ function AudioWaveform({
 
 export function AiPage() {
   const { saveAlarm } = useAlarms();
+  const navigate = useNavigate();
+  const { drafts, setDrafts } = useAiDrafts();
   const [inputMode, setInputMode] = useState<InputMode>("voice");
   const [text, setText] = useState("");
   const [state, setState] = useState<PageState>("idle");
-  const [drafts, setDrafts] = useState<AlarmDraft[]>([]);
-  const [editingDraftIndex, setEditingDraftIndex] = useState<number | null>(
-    null,
-  );
-  const [draftForm, setDraftForm] = useState<AlarmInput>(() => blankAlarm("ai"));
-  const [editorError, setEditorError] = useState("");
   const [savingDraft, setSavingDraft] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [isMessageError, setIsMessageError] = useState(false);
@@ -234,8 +228,6 @@ export function AiPage() {
     setInputMode("voice");
     setText("");
     setDrafts([]);
-    setEditingDraftIndex(null);
-    setEditorError("");
     setSavingDraft(null);
     clearMessage();
     setState("idle");
@@ -270,8 +262,6 @@ export function AiPage() {
 
   const showDrafts = (result: AlarmDraft[]) => {
     setDrafts(result);
-    setEditingDraftIndex(null);
-    setEditorError("");
     setState(result.length ? "preview" : "idle");
     setMessage(
       result.length
@@ -436,32 +426,6 @@ export function AiPage() {
     }
   };
 
-  const openDraftEditor = (index: number) => {
-    const draft = drafts[index];
-    if (!draft) return;
-    setDraftForm(draftToFormInput(draft));
-    setEditingDraftIndex(index);
-    setEditorError("");
-  };
-
-  const saveDraftChanges = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (editingDraftIndex === null) return;
-    const validationError = validateAlarmInput(draftForm);
-    if (validationError) {
-      setEditorError(validationError);
-      return;
-    }
-    setDrafts((current) =>
-      current.map((draft, index) =>
-        index === editingDraftIndex ? formToDraft(draftForm, draft) : draft,
-      ),
-    );
-    setEditingDraftIndex(null);
-    setEditorError("");
-    clearMessage();
-  };
-
   const removeDraft = (index: number) => {
     const remaining = drafts.filter((_, draftIndex) => draftIndex !== index);
     if (!remaining.length) {
@@ -533,7 +497,6 @@ export function AiPage() {
     setInputMode("text");
     setText(value);
     setDrafts([]);
-    setEditingDraftIndex(null);
     clearMessage();
   };
 
@@ -595,7 +558,10 @@ export function AiPage() {
                 <div className="mt-2.5 grid grid-cols-[1fr_1fr_42px] gap-2">
                   <button
                     className="inline-flex min-h-[41px] items-center justify-center gap-1.5 rounded-[11px] border border-border bg-background px-3 text-xs font-bold"
-                    onClick={() => openDraftEditor(index)}
+                    onClick={() => {
+                      clearMessage();
+                      navigate(`/ai/drafts/${index}/edit`);
+                    }}
                     disabled={saving}
                   >
                     <Icon name="edit" size={16} /> Editar
@@ -635,67 +601,6 @@ export function AiPage() {
             Descartar e começar de novo
           </button>
         </section>
-        {editingDraftIndex !== null && (
-          <div
-            className="fixed inset-0 z-20 overflow-y-auto bg-[color-mix(in_srgb,var(--foreground)_45%,transparent)] p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="draft-editor-title"
-          >
-            <form
-              className="mx-auto my-3 max-w-[560px] rounded-[22px] bg-surface shadow-soft"
-              onSubmit={saveDraftChanges}
-            >
-              <header className="grid grid-cols-[42px_1fr_42px] items-center gap-2 border-b border-border px-4 py-3">
-                <span aria-hidden="true" />
-                <h2
-                  className="m-0 truncate text-center text-sm font-bold"
-                  id="draft-editor-title"
-                >
-                  Editar lembrete
-                </h2>
-                <button
-                  className="inline-flex size-[42px] items-center justify-center rounded-full border-0 bg-transparent text-accent hover:bg-muted-surface"
-                  type="button"
-                  onClick={() => setEditingDraftIndex(null)}
-                  aria-label="Fechar edição"
-                >
-                  <Icon name="close" />
-                </button>
-              </header>
-              <div className="max-h-[calc(100svh-204px)] overflow-y-auto px-5 py-5 text-left">
-                <AlarmFormFields
-                  form={draftForm}
-                  onChange={setDraftForm}
-                  allowPastDates
-                />
-                {editorError && (
-                  <p
-                    className="mt-4 rounded-[10px] bg-[color-mix(in_srgb,var(--danger)_11%,transparent)] px-3 py-2.5 text-xs text-danger"
-                    role="alert"
-                  >
-                    {editorError}
-                  </p>
-                )}
-              </div>
-              <footer className="grid grid-cols-2 gap-2 border-t border-border px-5 py-4">
-                <button
-                  className="min-h-[46px] rounded-[13px] border border-border bg-background px-4 text-sm font-bold"
-                  type="button"
-                  onClick={() => setEditingDraftIndex(null)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className="min-h-[46px] rounded-[13px] border-0 bg-primary px-4 text-sm font-bold text-primary-foreground"
-                  type="submit"
-                >
-                  Salvar alterações
-                </button>
-              </footer>
-            </form>
-          </div>
-        )}
       </div>
     );
   }

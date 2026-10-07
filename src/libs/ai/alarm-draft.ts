@@ -1,4 +1,4 @@
-import type { AlarmInput } from "../alarm";
+import { getAlarmTitle, type AlarmInput } from "../alarm";
 import { blankAlarm } from "../alarm-form";
 import type { AlarmDraft } from "./index";
 
@@ -52,7 +52,7 @@ export function toAlarmInput(draft: AlarmDraft): AlarmInput {
 export function formToDraft(form: AlarmInput, draft: AlarmDraft): AlarmDraft {
   return {
     ...draft,
-    title: form.title,
+    title: getAlarmTitle(form),
     description: form.description || null,
     reminderType: form.reminderType,
     amount: form.amount ?? null,
@@ -72,4 +72,11 @@ export function formToDraft(form: AlarmInput, draft: AlarmDraft): AlarmDraft {
     status: form.status,
     exceptions: form.exceptions,
   };
+}
+
+export function replaceDraftWithInputs(drafts: AlarmDraft[], index: number, inputs: AlarmInput[]): AlarmDraft[] {
+  if (!drafts[index] || !inputs.length) return drafts;
+  return drafts.flatMap((draft, draftIndex) =>
+    draftIndex === index ? inputs.map((input) => formToDraft(input, draft)) : [draft],
+  );
 }

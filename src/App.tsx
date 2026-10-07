@@ -40,6 +40,9 @@ import { AlarmDetailPage } from "./pages/AlarmDetailPage";
 import { CompletedPage } from "./pages/CompletedPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AiPage } from "./pages/AiPage";
+import { AiDraftFormPage } from "./pages/AiDraftFormPage";
+import { AiDraftContext } from "./libs/ai/draft-context";
+import type { AlarmDraft } from "./libs/ai";
 
 type Theme = "system" | "light" | "dark";
 type AlarmContextValue = {
@@ -110,6 +113,7 @@ function errorMessage(error: unknown) {
 }
 
 function AppProviders({ children }: PropsWithChildren) {
+  const [drafts, setDrafts] = useState<AlarmDraft[]>([]);
   // Keep the viewed day and week when the agenda route unmounts for editing.
   const [selectedDate, setSelectedDate] = useState(() => localDateKey(new Date()));
   const [monthOffset, setMonthOffset] = useState(0);
@@ -306,7 +310,9 @@ function AppProviders({ children }: PropsWithChildren) {
     <ThemeContext.Provider value={{ theme, setTheme: setThemeState }}>
       <AlarmContext.Provider value={alarmValue}>
         <AgendaViewContext.Provider value={{ selectedDate, setSelectedDate, monthOffset, setMonthOffset }}>
-          {children}
+          <AiDraftContext.Provider value={{ drafts, setDrafts }}>
+            {children}
+          </AiDraftContext.Provider>
         </AgendaViewContext.Provider>
       </AlarmContext.Provider>
     </ThemeContext.Provider>
@@ -417,6 +423,7 @@ const router = createBrowserRouter([
       { path: "agenda/week", element: null },
       { path: "completed", element: null },
       { path: "ai", element: null },
+      { path: "ai/drafts/:draftIndex/edit", element: <AiDraftFormPage /> },
       { path: "settings", element: null },
       { path: "alarms/new", element: <AlarmFormPage /> },
       { path: "alarms/:id", element: <AlarmDetailPage /> },
